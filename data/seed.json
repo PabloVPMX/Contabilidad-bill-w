@@ -1,0 +1,447 @@
+{
+  "saldoInicial": 383.5,
+  "movimientos": [
+    {
+      "fecha": "2026-03-26",
+      "septima": 193.5,
+      "gastos": 0.0,
+      "comentario": "Entrega de tesoreria (Pendiente entrega de septima anterior, promejora, reserva y dinero para el clima por parte de Jorge Luis)"
+    },
+    {
+      "fecha": "2026-03-27",
+      "septima": 259.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-03-28",
+      "septima": 115.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-03-30",
+      "septima": 100.0,
+      "gastos": 10.0,
+      "comentario": "1 Garrafon"
+    },
+    {
+      "fecha": "2026-03-13",
+      "septima": 505.0,
+      "gastos": 0.0,
+      "comentario": "Devuelve $400 Osiris por transferencia de la septima anterior"
+    },
+    {
+      "fecha": "2026-04-01",
+      "septima": 90.0,
+      "gastos": 1500.0,
+      "comentario": "Pago de renta mes de marzo"
+    },
+    {
+      "fecha": "2026-04-02",
+      "septima": 417.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-03",
+      "septima": 83.0,
+      "gastos": 300.0,
+      "comentario": "$300 aportacion al distrito mes de marzo"
+    },
+    {
+      "fecha": "2026-04-04",
+      "septima": 60.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-06",
+      "septima": 170.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-07",
+      "septima": 38.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-08",
+      "septima": 200.0,
+      "gastos": 20.0,
+      "comentario": "2 Garrafones"
+    },
+    {
+      "fecha": "2026-04-09",
+      "septima": 100.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-10",
+      "septima": 238.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-11",
+      "septima": 224.0,
+      "gastos": 500.0,
+      "comentario": "$300 distrito $100 OSG $100 Area"
+    },
+    {
+      "fecha": "2026-04-13",
+      "septima": 39.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-14",
+      "septima": 186.0,
+      "gastos": 37.0,
+      "comentario": "Cloro y Jabon"
+    },
+    {
+      "fecha": "2026-04-15",
+      "septima": 399.0,
+      "gastos": 681.0,
+      "comentario": "Café, te, galletas, crema, 1 garrafon, pago CMAS"
+    },
+    {
+      "fecha": "2026-04-16",
+      "septima": 80.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-17",
+      "septima": 160.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-18",
+      "septima": 70.0,
+      "gastos": 10.0,
+      "comentario": "1 garrafon"
+    },
+    {
+      "fecha": "2026-04-20",
+      "septima": 198.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-21",
+      "septima": 91.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-22",
+      "septima": 73.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-23",
+      "septima": 60.0,
+      "gastos": 10.0,
+      "comentario": "1 garrafon"
+    },
+    {
+      "fecha": "2026-04-24",
+      "septima": 200.0,
+      "gastos": 331.0,
+      "comentario": "1kg de café"
+    },
+    {
+      "fecha": "2026-04-25",
+      "septima": 87.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-27",
+      "septima": 421.0,
+      "gastos": 1500.0,
+      "comentario": "Renta de mayo"
+    },
+    {
+      "fecha": "2026-04-28",
+      "septima": 170.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-04-29",
+      "septima": 88.0,
+      "gastos": 567.0,
+      "comentario": "$547 aniversario DTO 2 garrafones"
+    },
+    {
+      "fecha": "2026-04-30",
+      "septima": 240.0,
+      "gastos": 200.0,
+      "comentario": "$200  reserva"
+    },
+    {
+      "fecha": "2026-05-01",
+      "septima": 130.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-02",
+      "septima": 190.0,
+      "gastos": 130.0,
+      "comentario": "$260 llaves (130 promejora/130 septima)"
+    },
+    {
+      "fecha": "2026-05-04",
+      "septima": 298.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-05",
+      "septima": 134.0,
+      "gastos": 318.0,
+      "comentario": "1 KG de café"
+    },
+    {
+      "fecha": "2026-05-06",
+      "septima": 231.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-07",
+      "septima": 412.0,
+      "gastos": 213.0,
+      "comentario": "100 extras venta de colchones, crema, papel y filtros"
+    },
+    {
+      "fecha": "2026-05-08",
+      "septima": 223.0,
+      "gastos": 187.0,
+      "comentario": "CMAS mayo"
+    },
+    {
+      "fecha": "2026-05-09",
+      "septima": 600.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-11",
+      "septima": 123.0,
+      "gastos": 500.0,
+      "comentario": "300 distrito 100 area 100 osg"
+    },
+    {
+      "fecha": "2026-05-12",
+      "septima": 230.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-13",
+      "septima": 344.0,
+      "gastos": 45.0,
+      "comentario": "Pan"
+    },
+    {
+      "fecha": "2026-05-14",
+      "septima": 383.0,
+      "gastos": 10.0,
+      "comentario": "Garrafon"
+    },
+    {
+      "fecha": "2026-05-15",
+      "septima": 300.0,
+      "gastos": 370.0,
+      "comentario": "Café"
+    },
+    {
+      "fecha": "2026-05-16",
+      "septima": 398.0,
+      "gastos": 260.0,
+      "comentario": "Distrito"
+    },
+    {
+      "fecha": "2026-05-17",
+      "septima": 279.0,
+      "gastos": 195.0,
+      "comentario": "Fabuloso, galletas, fibra"
+    },
+    {
+      "fecha": "2026-05-18",
+      "septima": 250.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-19",
+      "septima": 219.0,
+      "gastos": 82.0,
+      "comentario": "CFE mayo"
+    },
+    {
+      "fecha": "2026-05-20",
+      "septima": 413.0,
+      "gastos": 10.0,
+      "comentario": "1 garrafon"
+    },
+    {
+      "fecha": "2026-05-21",
+      "septima": 238.0,
+      "gastos": 70.0,
+      "comentario": "Pan"
+    },
+    {
+      "fecha": "2026-05-22",
+      "septima": 268.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-23",
+      "septima": 389.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-24",
+      "septima": 231.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-25",
+      "septima": 265.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-26",
+      "septima": 119.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-27",
+      "septima": 145.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-28",
+      "septima": 192.0,
+      "gastos": 305.0,
+      "comentario": "Café 1 garrafon"
+    },
+    {
+      "fecha": "2026-05-29",
+      "septima": 139.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-05-30",
+      "septima": 136.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-06-01",
+      "septima": 101.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-06-02",
+      "septima": 224.0,
+      "gastos": 425.0,
+      "comentario": "1 kg azucar 400 arreglo chapa"
+    },
+    {
+      "fecha": "2026-06-03",
+      "septima": 126.0,
+      "gastos": 10.0,
+      "comentario": "Garrafon"
+    },
+    {
+      "fecha": "2026-06-04",
+      "septima": 451.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-06-05",
+      "septima": 114.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-06-06",
+      "septima": 200.0,
+      "gastos": 187.0,
+      "comentario": "CMAS JUNIO"
+    },
+    {
+      "fecha": "2026-06-09",
+      "septima": 139.0,
+      "gastos": 4299.0,
+      "comentario": "renta $3,000, café, crema, galletas $439, Distrito $3000"
+    },
+    {
+      "fecha": "2026-06-10",
+      "septima": 124.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-06-11",
+      "septima": 84.0,
+      "gastos": 0.0,
+      "comentario": ""
+    },
+    {
+      "fecha": "2026-06-12",
+      "septima": 147.0,
+      "gastos": 10.0,
+      "comentario": "Garrafon"
+    },
+    {
+      "fecha": "2026-06-13",
+      "septima": 114.0,
+      "gastos": 0.0,
+      "comentario": ""
+    }
+  ],
+  "clima": [
+    {
+      "nombre": "JUAN PABLO",
+      "monto": 200.0
+    },
+    {
+      "nombre": "JUAN PABLO",
+      "monto": 200.0
+    },
+    {
+      "nombre": "JULIO",
+      "monto": 200.0
+    }
+  ],
+  "reserva": [
+    {
+      "mes": "2026-05",
+      "monto": 500.0,
+      "comentario": "Reserva tomada del saldo final del mes"
+    }
+  ],
+  "promejora": 0.0
+}

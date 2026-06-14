@@ -1,0 +1,16 @@
+{
+  "name": "crm-grupo-bill-w",
+  "version": "1.0.0",
+  "description": "CRM de contabilidad para Grupo Bill W",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

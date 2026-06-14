@@ -1,0 +1,304 @@
+'use strict';
+
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// El directorio /data se monta como volumen persistente en EasyPanel.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
+const SEED_FILE = path.join(__dirname, 'data', 'seed.json');
+
+app.use(express.json({ limit: '2mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ---------------------------------------------------------------------------
+// Almacenamiento (archivo JSON con escritura atómica). Suficiente y robusto
+// para un volumen de datos pequeño y un solo tesorero editando a la vez.
+// ---------------------------------------------------------------------------
+function ensureDb() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(DB_FILE)) {
+    const seed = JSON.parse(fs.readFileSync(SEED_FILE, 'utf-8'));
+    const db = {
+      saldoInicial: seed.saldoInicial || 0,
+      promejora: seed.promejora || 0,
+      movimientos: (seed.movimientos || []).map((m, i) => ({ id: i + 1, ...m })),
+      clima: (seed.clima || []).map((c, i) => ({ id: i + 1, ...c })),
+      reserva: (seed.reserva || []).map((r, i) => ({ id: i + 1, ...r })),
+      promejora: [],
+      seq: { mov: (seed.movimientos || []).length, clima: (seed.clima || []).length, reserva: (seed.reserva || []).length, promejora: 0 }
+    };
+    writeDb(db);
+    return db;
+  }
+  return readDb();
+}
+
+// Normaliza bases existentes (migra "promejora" numérica al nuevo libro)
+function normalizeDb(db) {
+  db.seq = db.seq || {};
+  if (!Array.isArray(db.promejora)) {
+    const old = parseFloat(db.promejora);
+    db.promejora = Number.isFinite(old) && old !== 0
+      ? [{ id: 1, fecha: '', ingreso: old, gasto: 0, comentario: 'Saldo inicial de promejora' }]
+      : [];
+  }
+  if (db.seq.promejora == null) db.seq.promejora = db.promejora.length;
+  return db;
+}
+
+function readDb() {
+  return normalizeDb(JSON.parse(fs.readFileSync(DB_FILE, 'utf-8')));
+}
+
+function writeDb(db) {
+  const tmp = DB_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2), 'utf-8');
+  fs.renameSync(tmp, DB_FILE);
+}
+
+let DB = ensureDb();
+function save() { writeDb(DB); }
+
+const num = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// ---------------------------------------------------------------------------
+// Cálculo del estado completo (saldos corridos + resúmenes ejecutivos)
+// ---------------------------------------------------------------------------
+function computeState() {
+  const movs = [...DB.movimientos];
+
+  let saldo = num(DB.saldoInicial);
+  const rows = movs.map((m) => {
+    const saldoAnterior = saldo;
+    const septima = num(m.septima);
+    const gastos = num(m.gastos);
+    const total = saldoAnterior + septima - gastos;
+    saldo = total;
+    return {
+      id: m.id,
+      fecha: m.fecha || '',
+      mes: (m.fecha || '').slice(0, 7),
+      septima,
+      gastos,
+      comentario: m.comentario || '',
+      saldoAnterior,
+      total
+    };
+  });
+
+  const totalSeptimas = rows.reduce((a, r) => a + r.septima, 0);
+  const totalGastos = rows.reduce((a, r) => a + r.gastos, 0);
+  const saldoActual = rows.length ? rows[rows.length - 1].total : num(DB.saldoInicial);
+
+  // Resumen por mes (ejecutivo)
+  const mesesMap = new Map();
+  for (const r of rows) {
+    const key = r.mes || 'sin-fecha';
+    if (!mesesMap.has(key)) {
+      mesesMap.set(key, {
+        mes: key,
+        ingresos: 0,
+        gastos: 0,
+        movimientos: 0,
+        saldoInicialMes: r.saldoAnterior,
+        saldoFinalMes: r.total
+      });
+    }
+    const g = mesesMap.get(key);
+    g.ingresos += r.septima;
+    g.gastos += r.gastos;
+    g.movimientos += 1;
+    g.saldoFinalMes = r.total;
+  }
+  const meses = [...mesesMap.values()]
+    .map((g) => ({ ...g, neto: g.ingresos - g.gastos }))
+    .sort((a, b) => a.mes.localeCompare(b.mes));
+
+  const totalClima = DB.clima.reduce((a, c) => a + num(c.monto), 0);
+  const totalReserva = DB.reserva.reduce((a, r) => a + num(r.monto), 0);
+
+  // Promejora: saldo independiente con su propio libro de ingresos/gastos
+  const promejoraRows = DB.promejora.map((p) => ({
+    id: p.id,
+    fecha: p.fecha || '',
+    mes: (p.fecha || '').slice(0, 7),
+    ingreso: num(p.ingreso),
+    gasto: num(p.gasto),
+    comentario: p.comentario || ''
+  })).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  const promejoraIngresos = promejoraRows.reduce((a, r) => a + r.ingreso, 0);
+  const promejoraGastos = promejoraRows.reduce((a, r) => a + r.gasto, 0);
+  const promejoraSaldo = promejoraIngresos - promejoraGastos;
+
+  return {
+    saldoInicial: num(DB.saldoInicial),
+    rows,
+    resumen: {
+      saldoInicial: num(DB.saldoInicial),
+      totalSeptimas,
+      totalGastos,
+      // "Total ingresos" como en la hoja original = saldo inicial + séptimas
+      totalIngresos: num(DB.saldoInicial) + totalSeptimas,
+      saldoActual,
+      totalReserva,
+      totalClima,
+      promejora: promejoraSaldo,
+      promejoraIngresos,
+      promejoraGastos,
+      numMovimientos: rows.length
+    },
+    meses,
+    clima: DB.clima,
+    reserva: DB.reserva,
+    promejora: promejoraRows
+  };
+}
+
+// ---------------------------------------------------------------------------
+// API
+// ---------------------------------------------------------------------------
+app.get('/api/state', (req, res) => res.json(computeState()));
+
+// --- Movimientos ---
+app.post('/api/movimientos', (req, res) => {
+  const { fecha, septima, gastos, comentario } = req.body || {};
+  if (!fecha) return res.status(400).json({ error: 'La fecha es obligatoria' });
+  DB.seq.mov += 1;
+  const mov = { id: DB.seq.mov, fecha, septima: num(septima), gastos: num(gastos), comentario: comentario || '' };
+  // Insertar manteniendo orden cronológico por fecha
+  const idx = DB.movimientos.findIndex((m) => (m.fecha || '') > fecha);
+  if (idx === -1) DB.movimientos.push(mov);
+  else DB.movimientos.splice(idx, 0, mov);
+  save();
+  res.json(computeState());
+});
+
+app.put('/api/movimientos/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const m = DB.movimientos.find((x) => x.id === id);
+  if (!m) return res.status(404).json({ error: 'No encontrado' });
+  const { fecha, septima, gastos, comentario } = req.body || {};
+  if (fecha !== undefined) m.fecha = fecha;
+  if (septima !== undefined) m.septima = num(septima);
+  if (gastos !== undefined) m.gastos = num(gastos);
+  if (comentario !== undefined) m.comentario = comentario;
+  DB.movimientos.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  save();
+  res.json(computeState());
+});
+
+app.delete('/api/movimientos/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  DB.movimientos = DB.movimientos.filter((x) => x.id !== id);
+  save();
+  res.json(computeState());
+});
+
+// --- Aportación clima ---
+app.post('/api/clima', (req, res) => {
+  const { nombre, monto } = req.body || {};
+  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  DB.seq.clima += 1;
+  DB.clima.push({ id: DB.seq.clima, nombre, monto: num(monto) });
+  save();
+  res.json(computeState());
+});
+
+app.put('/api/clima/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const c = DB.clima.find((x) => x.id === id);
+  if (!c) return res.status(404).json({ error: 'No encontrado' });
+  const { nombre, monto } = req.body || {};
+  if (nombre !== undefined) c.nombre = nombre;
+  if (monto !== undefined) c.monto = num(monto);
+  save();
+  res.json(computeState());
+});
+
+app.delete('/api/clima/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  DB.clima = DB.clima.filter((x) => x.id !== id);
+  save();
+  res.json(computeState());
+});
+
+// --- Reserva ---
+app.post('/api/reserva', (req, res) => {
+  const { mes, monto, comentario } = req.body || {};
+  DB.seq.reserva += 1;
+  DB.reserva.push({ id: DB.seq.reserva, mes: mes || '', monto: num(monto), comentario: comentario || '' });
+  save();
+  res.json(computeState());
+});
+
+app.put('/api/reserva/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const r = DB.reserva.find((x) => x.id === id);
+  if (!r) return res.status(404).json({ error: 'No encontrado' });
+  const { mes, monto, comentario } = req.body || {};
+  if (mes !== undefined) r.mes = mes;
+  if (monto !== undefined) r.monto = num(monto);
+  if (comentario !== undefined) r.comentario = comentario;
+  save();
+  res.json(computeState());
+});
+
+app.delete('/api/reserva/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  DB.reserva = DB.reserva.filter((x) => x.id !== id);
+  save();
+  res.json(computeState());
+});
+
+// --- Promejora (saldo independiente: ingresos y gastos) ---
+app.post('/api/promejora', (req, res) => {
+  const { fecha, ingreso, gasto, comentario } = req.body || {};
+  if (!fecha) return res.status(400).json({ error: 'La fecha es obligatoria' });
+  DB.seq.promejora += 1;
+  DB.promejora.push({ id: DB.seq.promejora, fecha, ingreso: num(ingreso), gasto: num(gasto), comentario: comentario || '' });
+  save();
+  res.json(computeState());
+});
+
+app.put('/api/promejora/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const p = DB.promejora.find((x) => x.id === id);
+  if (!p) return res.status(404).json({ error: 'No encontrado' });
+  const { fecha, ingreso, gasto, comentario } = req.body || {};
+  if (fecha !== undefined) p.fecha = fecha;
+  if (ingreso !== undefined) p.ingreso = num(ingreso);
+  if (gasto !== undefined) p.gasto = num(gasto);
+  if (comentario !== undefined) p.comentario = comentario;
+  save();
+  res.json(computeState());
+});
+
+app.delete('/api/promejora/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  DB.promejora = DB.promejora.filter((x) => x.id !== id);
+  save();
+  res.json(computeState());
+});
+
+// --- Configuración (saldo inicial) ---
+app.put('/api/config', (req, res) => {
+  const { saldoInicial } = req.body || {};
+  if (saldoInicial !== undefined) DB.saldoInicial = num(saldoInicial);
+  save();
+  res.json(computeState());
+});
+
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+app.listen(PORT, () => {
+  console.log(`CRM Grupo Bill W escuchando en puerto ${PORT}`);
+  console.log(`Datos en: ${DB_FILE}`);
+});

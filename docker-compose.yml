@@ -1,0 +1,14 @@
+services:
+  crm-bill-w:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - bill-w-data:/data
+    environment:
+      - PORT=3000
+      - DATA_DIR=/data
+    restart: unless-stopped
+
+volumes:
+  bill-w-data:

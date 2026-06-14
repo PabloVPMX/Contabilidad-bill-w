@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import openpyxl; print\\('ok'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(npm install *)",
+      "Bash(PORT=3777 node server.js)",
+      "Bash(curl -s http://localhost:3777/api/health)",
+      "Bash(curl -s http://localhost:3777/api/state)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['resumen'],indent=2,ensure_ascii=False\\)\\); print\\('meses:',[m['mes'] for m in d['meses']]\\); print\\('rows:',len\\(d['rows']\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:3777/api/clima -H \"Content-Type: application/json\" -d '{\"nombre\":\"PRUEBA\",\"monto\":50}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('totalClima',d['resumen']['totalClima'],'n',len\\(d['clima']\\)\\)\")",
+      "Bash(kill %1)",
+      "Bash(PORT=3778 node server.js)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}  bytes=%{size_download}\\\\n\" http://localhost:3778/)",
+      "Bash(curl -s -o /dev/null -w \"app.js HTTP %{http_code}\\\\n\" http://localhost:3778/app.js)",
+      "Bash(curl -s -o /dev/null -w \"styles.css HTTP %{http_code}\\\\n\" http://localhost:3778/styles.css)",
+      "Bash(node server.js)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"logo.webp  HTTP %{http_code}  type=%{content_type}\\\\n\" http://localhost:3000/logo.webp)",
+      "Bash(curl -s -o /dev/null -w \"app.js     HTTP %{http_code}\\\\n\" http://localhost:3000/app.js)",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('public/app.js','utf8'\\)\\); console.log\\('app.js: sintaxis OK'\\)\")",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('public/app.js','utf8'\\)\\); console.log\\('app.js OK'\\)\")",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('server.js','utf8'\\).replace\\(/^#!.*/,''\\)\\); console.log\\('server.js OK'\\)\")"
+    ]
+  }
+}

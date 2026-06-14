@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contabilidad · Grupo Bill W</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Panel lateral izquierdo -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="brand-logo-img" src="logo.webp" alt="A.A." />
+        <div>
+          <div class="brand-title">Grupo Bill W</div>
+          <div class="brand-sub">Contabilidad</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="general">
+          <span class="ico">📊</span> Resumen general
+        </button>
+        <button class="nav-item" data-view="meses">
+          <span class="ico">🗓️</span> Resúmenes por mes
+        </button>
+        <button class="nav-item" data-view="movimientos">
+          <span class="ico">💵</span> Movimientos
+        </button>
+        <button class="nav-item" data-view="reserva">
+          <span class="ico">🏦</span> Reserva
+        </button>
+        <button class="nav-item" data-view="promejora">
+          <span class="ico">🔧</span> Promejora
+        </button>
+        <button class="nav-item" data-view="clima">
+          <span class="ico">❄️</span> Aportación clima
+        </button>
+      </nav>
+
+      <div class="sidebar-summary">
+        <div class="ss-title">Estado actual</div>
+        <div class="ss-row"><span>Saldo actual</span><b id="ss-saldo">—</b></div>
+        <div class="ss-row"><span>Reserva</span><b id="ss-reserva">—</b></div>
+        <div class="ss-row"><span>Clima</span><b id="ss-clima">—</b></div>
+      </div>
+
+      <div class="sidebar-foot">Datos públicos · sin contraseña</div>
+    </aside>
+
+    <!-- Contenido -->
+    <main class="content">
+      <header class="topbar">
+        <h1 id="view-title">Resumen general</h1>
+        <div class="topbar-actions" id="topbar-actions"></div>
+      </header>
+      <section id="view-root" class="view-root"></section>
+    </main>
+  </div>
+
+  <!-- Modal genérico -->
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-head"><h3 id="modal-title">—</h3><button id="modal-close" class="icon-btn">✕</button></div>
+      <form id="modal-form" class="modal-body"></form>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" id="modal-cancel">Cancelar</button>
+        <button type="submit" form="modal-form" class="btn primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
