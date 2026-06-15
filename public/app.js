@@ -342,11 +342,10 @@ function viewReserva(root) {
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><h2>Registros de reserva</h2></div>
     <div class="card-body">${r.length ? `<table>
-      <thead><tr><th>Mes</th><th class="num">Monto</th><th>Comentario</th><th></th></tr></thead>
+      <thead><tr><th>Mes</th><th class="num">Monto</th><th></th></tr></thead>
       <tbody>${r.map((x) => `<tr>
         <td>${esc(x.mes ? mesLabel(x.mes) : '—')}</td>
         <td class="num"><b>${money(x.monto)}</b></td>
-        <td>${esc(x.comentario) || '<span class="muted">—</span>'}</td>
         <td><div class="row-actions">
           <button class="icon-btn" data-edit-res="${x.id}">✏️</button>
           <button class="icon-btn" data-del-res="${x.id}">🗑️</button>
@@ -379,7 +378,7 @@ function viewPromejora(root) {
         <td>${esc(fechaLabel(x.fecha))}</td>
         <td class="num ${x.ingreso ? 'pos' : 'muted'}">${x.ingreso ? money(x.ingreso) : '—'}</td>
         <td class="num ${x.gasto ? 'neg' : 'muted'}">${x.gasto ? money(x.gasto) : '—'}</td>
-        <td>${esc(x.comentario) || '<span class="muted">—</span>'}</td>
+        <td>${comentarioGastos(x)}</td>
         <td><div class="row-actions">
           <button class="icon-btn" data-edit-pro="${x.id}">✏️</button>
           <button class="icon-btn" data-del-pro="${x.id}">🗑️</button>
@@ -426,13 +425,23 @@ function exportMonthlyPdf(mes) {
 
   const proMes = STATE.promejora.filter((p) => p.mes === mes);
   const proIngresos = proMes.reduce((a, r) => a + (Number(r.ingreso) || 0), 0);
-  const proGastosRows = proMes.filter((r) => r.gasto > 0);
   const proGastosTotal = proMes.reduce((a, r) => a + (Number(r.gasto) || 0), 0);
-  const desglosePromejora = proGastosRows.length
-    ? proGastosRows.map((r) => `<tr>
-        <td>${esc(fechaLabel(r.fecha))}</td>
-        <td>${esc(r.comentario) || 'Sin concepto especificado'}</td>
-        <td class="num">${money(r.gasto)}</td>
+  // Cada concepto de gasto de promejora se lista como un renglón independiente.
+  const proGastoLineas = [];
+  for (const r of proMes) {
+    if (Array.isArray(r.gastosItems) && r.gastosItems.length) {
+      for (const it of r.gastosItems) {
+        proGastoLineas.push({ fecha: r.fecha, concepto: it.concepto || 'Sin concepto especificado', monto: Number(it.monto) || 0 });
+      }
+    } else if (r.gasto > 0) {
+      proGastoLineas.push({ fecha: r.fecha, concepto: r.comentario || 'Sin concepto especificado', monto: r.gasto });
+    }
+  }
+  const desglosePromejora = proGastoLineas.length
+    ? proGastoLineas.map((g) => `<tr>
+        <td>${esc(fechaLabel(g.fecha))}</td>
+        <td>${esc(g.concepto)}</td>
+        <td class="num">${money(g.monto)}</td>
       </tr>`).join('')
     : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos de promejora en el mes.</td></tr>';
 
@@ -597,69 +606,80 @@ function gastoRowHtml(concepto = '', monto = '') {
   </div>`;
 }
 
+// --- Sección reutilizable de gastos con varios conceptos (sin comentario) ---
+function gastosFieldHtml(items, label) {
+  const rows = (items && items.length) ? items : [{ concepto: '', monto: '' }];
+  return `<div class="field">
+    <span>${label}</span>
+    <div id="gastos-list">${rows.map((it) => gastoRowHtml(it.concepto, it.monto)).join('')}</div>
+    <button type="button" class="btn ghost" id="add-gasto" style="margin-top:4px">+ Agregar concepto de gasto</button>
+    <div class="gasto-total muted" id="gasto-total" style="margin-top:8px"></div>
+  </div>`;
+}
+
+function wireGastos(form) {
+  const list = $('#gastos-list', form);
+  const recalc = () => {
+    const total = $$('.g-monto', form).reduce((a, i) => a + (parseFloat(i.value) || 0), 0);
+    $('#gasto-total', form).textContent = 'Total de gastos: ' + money(total);
+  };
+  $('#add-gasto', form).onclick = () => { list.insertAdjacentHTML('beforeend', gastoRowHtml()); recalc(); };
+  form.addEventListener('input', (e) => { if (e.target.classList.contains('g-monto')) recalc(); });
+  form.addEventListener('click', (e) => {
+    const del = e.target.closest('.g-del');
+    if (!del) return;
+    const row = del.closest('.gasto-row');
+    if ($$('.gasto-row', form).length > 1) row.remove();
+    else { $('.g-concepto', row).value = ''; $('.g-monto', row).value = ''; }
+    recalc();
+  });
+  recalc();
+}
+
+function collectGastos(form) {
+  return $$('.gasto-row', form).map((row) => ({
+    concepto: $('.g-concepto', row).value.trim(),
+    monto: parseFloat($('.g-monto', row).value) || 0
+  })).filter((it) => it.concepto !== '' || it.monto !== 0);
+}
+
+// Calcula los renglones de gasto a precargar al editar (compatibilidad con
+// registros antiguos que tenían un único monto + comentario).
+function gastosPrecarga(rec, montoLegacy) {
+  if (rec && Array.isArray(rec.gastosItems) && rec.gastosItems.length) {
+    return rec.gastosItems.map((x) => ({ concepto: x.concepto || '', monto: x.monto }));
+  }
+  if (rec && montoLegacy) return [{ concepto: rec.comentario || '', monto: montoLegacy }];
+  return [{ concepto: '', monto: '' }];
+}
+
+// Comentario a conservar al guardar: vacío si el comentario antiguo ya pasó
+// a ser un concepto de gasto; si no, se preserva tal cual (sin capturarlo).
+function comentarioAConservar(rec, montoLegacy) {
+  const tieneItems = rec && Array.isArray(rec.gastosItems) && rec.gastosItems.length;
+  if (rec && !tieneItems && montoLegacy) return ''; // el comentario se volvió concepto
+  return (rec && rec.comentario) || '';
+}
+
 function openMovModal(mov) {
   const isEdit = !!mov;
   const today = new Date().toISOString().slice(0, 10);
-
-  // Renglones de gasto a precargar (compatibilidad con movimientos antiguos)
-  let items = [];
-  let keepComment = '';
-  if (mov) {
-    if (Array.isArray(mov.gastosItems) && mov.gastosItems.length) {
-      items = mov.gastosItems.map((x) => ({ concepto: x.concepto || '', monto: x.monto }));
-      keepComment = mov.comentario || ''; // se conserva si existía
-    } else if (mov.gastos) {
-      items = [{ concepto: mov.comentario || '', monto: mov.gastos }]; // el comentario pasa a ser concepto
-    } else {
-      keepComment = mov.comentario || ''; // ingreso sin gastos: se conserva el comentario previo
-    }
-  }
-  if (!items.length) items = [{ concepto: '', monto: '' }];
+  const items = gastosPrecarga(mov, mov?.gastos);
+  const keepComment = comentarioAConservar(mov, mov?.gastos);
 
   const fields =
     field('Fecha', 'fecha', 'date', mov?.fecha || today, 'required') +
     field('Séptima (ingreso)', 'septima', 'number', mov?.septima ?? 0, 'step="0.01" min="0"') +
-    `<div class="field">
-      <span>Gastos del día (concepto y monto)</span>
-      <div id="gastos-list">${items.map((it) => gastoRowHtml(it.concepto, it.monto)).join('')}</div>
-      <button type="button" class="btn ghost" id="add-gasto" style="margin-top:4px">+ Agregar concepto de gasto</button>
-      <div class="gasto-total muted" id="gasto-total" style="margin-top:8px"></div>
-    </div>`;
+    gastosFieldHtml(items, 'Gastos del día (concepto y monto)');
 
   openModal(isEdit ? 'Editar movimiento' : 'Nuevo movimiento', fields,
     (data, form) => {
-      const gastosItems = $$('.gasto-row', form).map((row) => ({
-        concepto: $('.g-concepto', row).value.trim(),
-        monto: parseFloat($('.g-monto', row).value) || 0
-      })).filter((it) => it.concepto !== '' || it.monto !== 0);
-      const payload = {
-        fecha: data.fecha,
-        septima: data.septima,
-        comentario: keepComment,
-        gastosItems
-      };
+      const payload = { fecha: data.fecha, septima: data.septima, comentario: keepComment, gastosItems: collectGastos(form) };
       return isEdit
         ? api('PUT', `/api/movimientos/${mov.id}`, payload)
         : api('POST', '/api/movimientos', payload);
     },
-    (form) => {
-      const list = $('#gastos-list', form);
-      const recalc = () => {
-        const total = $$('.g-monto', form).reduce((a, i) => a + (parseFloat(i.value) || 0), 0);
-        $('#gasto-total', form).textContent = 'Total de gastos del día: ' + money(total);
-      };
-      $('#add-gasto', form).onclick = () => { list.insertAdjacentHTML('beforeend', gastoRowHtml()); recalc(); };
-      form.addEventListener('input', (e) => { if (e.target.classList.contains('g-monto')) recalc(); });
-      form.addEventListener('click', (e) => {
-        const del = e.target.closest('.g-del');
-        if (!del) return;
-        const row = del.closest('.gasto-row');
-        if ($$('.gasto-row', form).length > 1) row.remove();
-        else { $('.g-concepto', row).value = ''; $('.g-monto', row).value = ''; }
-        recalc();
-      });
-      recalc();
-    });
+    wireGastos);
 }
 
 function openClimaModal(c) {
@@ -675,15 +695,22 @@ function openClimaModal(c) {
 function openPromejoraModal(p) {
   const isEdit = !!p;
   const today = new Date().toISOString().slice(0, 10);
-  openModal(isEdit ? 'Editar movimiento de promejora' : 'Nuevo movimiento de promejora',
+  const items = gastosPrecarga(p, p?.gasto);
+  const keepComment = comentarioAConservar(p, p?.gasto);
+
+  const fields =
     field('Fecha', 'fecha', 'date', p?.fecha || today, 'required') +
     field('Ingreso', 'ingreso', 'number', p?.ingreso ?? 0, 'step="0.01" min="0"') +
-    field('Gasto', 'gasto', 'number', p?.gasto ?? 0, 'step="0.01" min="0"') +
-    `<label class="field"><span>Concepto</span>
-      <textarea name="comentario" rows="3">${esc(p?.comentario || '')}</textarea></label>`,
-    (data) => isEdit
-      ? api('PUT', `/api/promejora/${p.id}`, data)
-      : api('POST', '/api/promejora', data));
+    gastosFieldHtml(items, 'Gastos (concepto y monto)');
+
+  openModal(isEdit ? 'Editar movimiento de promejora' : 'Nuevo movimiento de promejora', fields,
+    (data, form) => {
+      const payload = { fecha: data.fecha, ingreso: data.ingreso, comentario: keepComment, gastosItems: collectGastos(form) };
+      return isEdit
+        ? api('PUT', `/api/promejora/${p.id}`, payload)
+        : api('POST', '/api/promejora', payload);
+    },
+    wireGastos);
 }
 
 function openReservaModal(r) {
@@ -691,9 +718,7 @@ function openReservaModal(r) {
   const ym = new Date().toISOString().slice(0, 7);
   openModal(isEdit ? 'Editar registro de reserva' : 'Nuevo registro de reserva',
     field('Mes', 'mes', 'month', r?.mes || ym) +
-    field('Monto', 'monto', 'number', r?.monto ?? 0, 'step="0.01" required') +
-    `<label class="field"><span>Comentario</span>
-      <textarea name="comentario" rows="2">${esc(r?.comentario || '')}</textarea></label>`,
+    field('Monto', 'monto', 'number', r?.monto ?? 0, 'step="0.01" required'),
     (data) => isEdit
       ? api('PUT', `/api/reserva/${r.id}`, data)
       : api('POST', '/api/reserva', data));

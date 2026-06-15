@@ -242,14 +242,18 @@ function computeState() {
   const totalReserva = DB.reserva.reduce((a, r) => a + num(r.monto), 0);
 
   // Promejora: saldo independiente con su propio libro de ingresos/gastos
-  const promejoraRows = DB.promejora.map((p) => ({
-    id: p.id,
-    fecha: p.fecha || '',
-    mes: (p.fecha || '').slice(0, 7),
-    ingreso: num(p.ingreso),
-    gasto: num(p.gasto),
-    comentario: p.comentario || ''
-  })).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  const promejoraRows = DB.promejora.map((p) => {
+    const itemsTotal = gastosItemsTotal(p);
+    return {
+      id: p.id,
+      fecha: p.fecha || '',
+      mes: (p.fecha || '').slice(0, 7),
+      ingreso: num(p.ingreso),
+      gasto: itemsTotal != null ? itemsTotal : num(p.gasto),
+      comentario: p.comentario || '',
+      gastosItems: Array.isArray(p.gastosItems) ? p.gastosItems : null
+    };
+  }).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
   const promejoraIngresos = promejoraRows.reduce((a, r) => a + r.ingreso, 0);
   const promejoraGastos = promejoraRows.reduce((a, r) => a + r.gasto, 0);
   const promejoraSaldo = promejoraIngresos - promejoraGastos;
@@ -391,12 +395,18 @@ app.delete('/api/reserva/:id', (req, res) => {
   res.json(computeState());
 });
 
-// --- Promejora (saldo independiente: ingresos y gastos) ---
+// --- Promejora (saldo independiente: ingresos y gastos por concepto) ---
 app.post('/api/promejora', (req, res) => {
-  const { fecha, ingreso, gasto, comentario } = req.body || {};
+  const { fecha, ingreso, gasto, comentario, gastosItems } = req.body || {};
   if (!fecha) return res.status(400).json({ error: 'La fecha es obligatoria' });
   DB.seq.promejora += 1;
-  DB.promejora.push({ id: DB.seq.promejora, fecha, ingreso: num(ingreso), gasto: num(gasto), comentario: comentario || '' });
+  const p = { id: DB.seq.promejora, fecha, ingreso: num(ingreso), gasto: num(gasto), comentario: comentario || '' };
+  const items = parseGastosItems(gastosItems);
+  if (items && items.length) {
+    p.gastosItems = items;
+    p.gasto = items.reduce((a, it) => a + num(it.monto), 0);
+  }
+  DB.promejora.push(p);
   save();
   res.json(computeState());
 });
@@ -405,11 +415,23 @@ app.put('/api/promejora/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
   const p = DB.promejora.find((x) => x.id === id);
   if (!p) return res.status(404).json({ error: 'No encontrado' });
-  const { fecha, ingreso, gasto, comentario } = req.body || {};
+  const { fecha, ingreso, gasto, comentario, gastosItems } = req.body || {};
   if (fecha !== undefined) p.fecha = fecha;
   if (ingreso !== undefined) p.ingreso = num(ingreso);
-  if (gasto !== undefined) p.gasto = num(gasto);
   if (comentario !== undefined) p.comentario = comentario;
+  if (gastosItems !== undefined) {
+    const items = parseGastosItems(gastosItems);
+    if (items && items.length) {
+      p.gastosItems = items;
+      p.gasto = items.reduce((a, it) => a + num(it.monto), 0);
+    } else {
+      delete p.gastosItems;
+      p.gasto = gasto !== undefined ? num(gasto) : 0;
+    }
+  } else if (gasto !== undefined) {
+    p.gasto = num(gasto);
+    delete p.gastosItems;
+  }
   save();
   res.json(computeState());
 });
