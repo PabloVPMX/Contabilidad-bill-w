@@ -313,15 +313,6 @@ function viewMeses(root) {
 // ---------------------------------------------------------------------------
 // Vista: Movimientos
 function viewMovimientos(root) {
-  const r = STATE.resumen;
-  const kpis = document.createElement('div');
-  kpis.className = 'kpis';
-  kpis.innerHTML = `
-    <div class="kpi"><div class="label">Séptimas</div><div class="value pos">${money(r.totalSeptimas)}</div></div>
-    <div class="kpi"><div class="label">Gastos</div><div class="value neg">${money(r.totalGastos)}</div></div>
-    <div class="kpi accent"><div class="label">Saldo actual</div><div class="value">${money(r.saldoActual)}</div></div>`;
-  root.appendChild(kpis);
-
   // Filtros por año y mes
   const years = aniosDe(STATE.rows.map((x) => x.fecha));
   if (MOV_YEAR !== 'all' && !years.includes(MOV_YEAR)) MOV_YEAR = 'all';
