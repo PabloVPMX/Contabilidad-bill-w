@@ -808,4 +808,11 @@ $('#logout-btn').onclick = async () => {
   location.reload();
 };
 
+// PWA: registrar el service worker (permite instalar la app y arranque básico offline)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 load();

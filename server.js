@@ -86,10 +86,21 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// Recursos públicos (no sensibles) que el navegador necesita sin sesión:
+// logo de la pantalla de acceso, manifiesto, íconos y service worker de la PWA.
+const PUBLIC_ASSETS = new Set([
+  '/logo.webp',
+  '/manifest.webmanifest',
+  '/sw.js',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png'
+]);
+
 // A partir de aquí, todo requiere haber ingresado la palabra de acceso.
 app.use((req, res, next) => {
   if (isAuthed(req)) return next();
-  if (req.path === '/logo.webp') return next(); // logo visible en la página de acceso
+  if (PUBLIC_ASSETS.has(req.path)) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'No autorizado' });
   res.status(200).send(loginPage(false));
 });
