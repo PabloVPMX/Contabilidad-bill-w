@@ -22,7 +22,13 @@
       "Bash(curl -s -o /dev/null -w \"app.js     HTTP %{http_code}\\\\n\" http://localhost:3000/app.js)",
       "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('public/app.js','utf8'\\)\\); console.log\\('app.js: sintaxis OK'\\)\")",
       "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('public/app.js','utf8'\\)\\); console.log\\('app.js OK'\\)\")",
-      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('server.js','utf8'\\).replace\\(/^#!.*/,''\\)\\); console.log\\('server.js OK'\\)\")"
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('server.js','utf8'\\).replace\\(/^#!.*/,''\\)\\); console.log\\('server.js OK'\\)\")",
+      "Bash(node --check server.js)",
+      "Bash(node --check public/app.js)",
+      "Bash(DATA_DIR=./data_test PORT=3999 node server.js)",
+      "Bash(curl -s http://localhost:3999/api/health)",
+      "Bash(curl -s -D - -o /dev/null http://localhost:3999/api/backup)",
+      "Bash(rm -rf ./data_test)"
     ]
   }
 }

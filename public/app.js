@@ -46,6 +46,7 @@ async function load() {
 function setView(v) {
   VIEW = v;
   $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+  $('.app').classList.remove('nav-open'); // cierra el cajón en móvil al elegir vista
   render();
 }
 
@@ -601,5 +602,9 @@ document.addEventListener('click', async (e) => {
 $('#modal-close').onclick = closeModal;
 $('#modal-cancel').onclick = closeModal;
 $('#modal-backdrop').onclick = (e) => { if (e.target.id === 'modal-backdrop') closeModal(); };
+
+// Menú móvil (cajón lateral)
+$('#menu-toggle').onclick = () => $('.app').classList.toggle('nav-open');
+$('#nav-backdrop').onclick = () => $('.app').classList.remove('nav-open');
 
 load();

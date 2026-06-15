@@ -72,7 +72,24 @@ body {
 .ss-title { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 8px; }
 .ss-row { display: flex; justify-content: space-between; padding: 4px 0; color: #cbd5e1; }
 .ss-row b { color: #fff; }
+.btn-backup {
+  display: block; text-align: center; text-decoration: none;
+  margin-top: 10px; padding: 9px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  color: #e5e7eb; font-size: 13px; font-weight: 600;
+}
+.btn-backup:hover { background: rgba(255,255,255,.12); color: #fff; }
 .sidebar-foot { text-align: center; font-size: 11px; color: #64748b; margin-top: 12px; }
+
+/* Botón hamburguesa (solo móvil) y fondo del cajón */
+.menu-toggle {
+  display: none; border: 1px solid var(--line); background: #fff; color: var(--ink);
+  font-size: 20px; line-height: 1; padding: 6px 12px; border-radius: 10px; cursor: pointer;
+}
+.nav-backdrop {
+  position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 55; display: none;
+}
+.app.nav-open .nav-backdrop { display: block; }
 
 /* ---------- Content ---------- */
 .content { flex: 1; min-width: 0; padding: 0 28px 40px; }
@@ -163,8 +180,32 @@ label.field span { display: block; margin-bottom: 6px; }
 .barmeta { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 820px) {
-  .sidebar { width: 64px; flex-basis: 64px; }
-  .brand-title, .brand-sub, .nav-item span:not(.ico), .sidebar-summary, .sidebar-foot { display: none; }
-  .nav-item { justify-content: center; }
-  .content { padding: 0 14px 30px; }
+  /* El panel lateral se convierte en un cajón deslizable */
+  .sidebar {
+    position: fixed; left: 0; top: 0; z-index: 60;
+    width: 264px; flex-basis: 264px; height: 100vh;
+    transform: translateX(-100%); transition: transform .25s ease;
+    box-shadow: 0 0 40px rgba(0,0,0,.45);
+  }
+  .app.nav-open .sidebar { transform: translateX(0); }
+
+  .menu-toggle { display: inline-flex; }
+  .content { padding: 0 14px 30px; width: 100%; }
+  .topbar { gap: 12px; }
+  .topbar h1 { font-size: 18px; }
+  .topbar-actions { margin-left: auto; }
+
+  /* Las tablas se desplazan horizontalmente para no romper el diseño */
+  .card-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .card-body table { min-width: 560px; }
+
+  /* Gráfico mensual más compacto */
+  .barrow { grid-template-columns: 58px 1fr 88px; gap: 8px; }
+  .barmeta { font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .kpi .value { font-size: 22px; }
+  .topbar-actions .btn { padding: 8px 10px; font-size: 13px; }
 }

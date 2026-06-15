@@ -46,12 +46,17 @@
         <div class="ss-row"><span>Clima</span><b id="ss-clima">—</b></div>
       </div>
 
+      <a class="btn-backup" href="/api/backup" download>⬇️ Descargar respaldo</a>
       <div class="sidebar-foot">Datos públicos · sin contraseña</div>
     </aside>
+
+    <!-- Fondo oscuro al abrir el menú en móvil -->
+    <div class="nav-backdrop" id="nav-backdrop"></div>
 
     <!-- Contenido -->
     <main class="content">
       <header class="topbar">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Menú">☰</button>
         <h1 id="view-title">Resumen general</h1>
         <div class="topbar-actions" id="topbar-actions"></div>
       </header>

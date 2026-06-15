@@ -12,6 +12,10 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const SEED_FILE = path.join(__dirname, 'data', 'seed.json');
 
+// Respaldos automáticos: un snapshot por día dentro del volumen, en /data/backups.
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const BACKUP_KEEP = parseInt(process.env.BACKUP_KEEP || '30', 10); // días a conservar
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -59,6 +63,25 @@ function writeDb(db) {
   const tmp = DB_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2), 'utf-8');
   fs.renameSync(tmp, DB_FILE);
+}
+
+// Crea un respaldo diario (db-YYYY-MM-DD.json) y conserva solo los últimos
+// BACKUP_KEEP. Si ya existe el del día, lo sobrescribe (un snapshot por día).
+function makeBackup() {
+  try {
+    if (!fs.existsSync(DB_FILE)) return;
+    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const stamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, `db-${stamp}.json`));
+    const files = fs.readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith('db-') && f.endsWith('.json'))
+      .sort();
+    while (files.length > BACKUP_KEEP) {
+      fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+    }
+  } catch (e) {
+    console.error('Error al crear respaldo:', e.message);
+  }
 }
 
 let DB = ensureDb();
@@ -298,7 +321,20 @@ app.put('/api/config', (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+// Descargar un respaldo de la base actual (para guardarlo en el celular/PC).
+app.get('/api/backup', (req, res) => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="bill-w-${stamp}.json"`);
+  res.send(fs.readFileSync(DB_FILE, 'utf-8'));
+});
+
+// Respaldo automático: uno al arrancar y luego cada 24 h.
+makeBackup();
+setInterval(makeBackup, 24 * 60 * 60 * 1000);
+
 app.listen(PORT, () => {
   console.log(`CRM Grupo Bill W escuchando en puerto ${PORT}`);
   console.log(`Datos en: ${DB_FILE}`);
+  console.log(`Respaldos en: ${BACKUP_DIR} (conservando ${BACKUP_KEEP})`);
 });

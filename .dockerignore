@@ -2,6 +2,8 @@ node_modules
 npm-debug.log
 data/db.json
 data/db.json.tmp
+data/backups
+data_test
 *.xlsx
 .git
 .DS_Store
