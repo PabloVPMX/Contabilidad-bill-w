@@ -252,6 +252,17 @@ function viewMovimientos(root) {
   $('#mov-filter').onchange = (e) => { MOV_FILTER = e.target.value; render(); };
 }
 
+function comentarioGastos(r) {
+  const parts = [];
+  if (Array.isArray(r.gastosItems) && r.gastosItems.length) {
+    parts.push(r.gastosItems.map((it) =>
+      `<div class="g-line"><span>${esc(it.concepto) || '<span class="muted">Sin concepto</span>'}</span><b>${money(it.monto)}</b></div>`
+    ).join(''));
+  }
+  if (r.comentario) parts.push(`<div>${esc(r.comentario)}</div>`);
+  return parts.length ? `<div class="gastos-desglose">${parts.join('')}</div>` : '<span class="muted">—</span>';
+}
+
 function tablaMovs(rows, withActions) {
   if (!rows.length) return '<div class="empty">Sin movimientos.</div>';
   return `<table>
@@ -267,7 +278,7 @@ function tablaMovs(rows, withActions) {
         <td class="num ${r.septima ? 'pos' : 'muted'}">${r.septima ? money(r.septima) : '—'}</td>
         <td class="num ${r.gastos ? 'neg' : 'muted'}">${r.gastos ? money(r.gastos) : '—'}</td>
         <td class="num"><b>${money(r.total)}</b></td>
-        <td>${esc(r.comentario) || '<span class="muted">—</span>'}</td>
+        <td>${comentarioGastos(r)}</td>
         ${withActions ? `<td><div class="row-actions">
           <button class="icon-btn" data-edit-mov="${r.id}">✏️</button>
           <button class="icon-btn" data-del-mov="${r.id}">🗑️</button>
@@ -371,7 +382,6 @@ function exportMonthlyPdf(mes) {
   const m = STATE.meses.find((x) => x.mes === mes);
   if (!m) return;
   const rows = STATE.rows.filter((r) => r.mes === mes);
-  const gastos = rows.filter((r) => r.gastos > 0);
   const ingresosRows = rows.filter((r) => r.septima > 0);
   const hoy = fechaLabel(new Date().toISOString().slice(0, 10));
 
@@ -392,11 +402,22 @@ function exportMonthlyPdf(mes) {
   const totalReserva = STATE.resumen.totalReserva;
   const totalClima = STATE.resumen.totalClima;
 
-  const desgloseGastos = gastos.length
-    ? gastos.map((r) => `<tr>
-        <td>${esc(fechaLabel(r.fecha))}</td>
-        <td>${esc(r.comentario) || 'Sin concepto especificado'}</td>
-        <td class="num">${money(r.gastos)}</td>
+  // Cada concepto de gasto se lista como un renglón independiente.
+  const gastoLineas = [];
+  for (const r of rows) {
+    if (Array.isArray(r.gastosItems) && r.gastosItems.length) {
+      for (const it of r.gastosItems) {
+        gastoLineas.push({ fecha: r.fecha, concepto: it.concepto || 'Sin concepto especificado', monto: Number(it.monto) || 0 });
+      }
+    } else if (r.gastos > 0) {
+      gastoLineas.push({ fecha: r.fecha, concepto: r.comentario || 'Sin concepto especificado', monto: r.gastos });
+    }
+  }
+  const desgloseGastos = gastoLineas.length
+    ? gastoLineas.map((g) => `<tr>
+        <td>${esc(fechaLabel(g.fecha))}</td>
+        <td>${esc(g.concepto)}</td>
+        <td class="num">${money(g.monto)}</td>
       </tr>`).join('')
     : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos en el mes.</td></tr>';
 
@@ -503,16 +524,17 @@ function exportMonthlyPdf(mes) {
 
 // ---------------------------------------------------------------------------
 // Modales
-function openModal(title, fieldsHtml, onSubmit) {
+function openModal(title, fieldsHtml, onSubmit, onReady) {
   $('#modal-title').textContent = title;
   $('#modal-form').innerHTML = fieldsHtml;
   $('#modal-backdrop').hidden = false;
   const form = $('#modal-form');
+  if (onReady) onReady(form);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
     try {
-      STATE = await onSubmit(data);
+      STATE = await onSubmit(data, form);
       closeModal();
       render();
     } catch (err) { alert(err.message); }
@@ -527,18 +549,78 @@ function field(label, name, type, value, extra = '') {
     <input name="${name}" type="${type}" value="${value != null ? esc(value) : ''}" ${extra} /></label>`;
 }
 
+function gastoRowHtml(concepto = '', monto = '') {
+  const m = (monto !== '' && monto != null) ? esc(monto) : '';
+  return `<div class="gasto-row">
+    <input class="g-concepto" type="text" placeholder="Concepto del gasto" value="${esc(concepto)}" />
+    <input class="g-monto" type="number" step="0.01" min="0" placeholder="0.00" value="${m}" />
+    <button type="button" class="icon-btn g-del" title="Quitar renglón">🗑️</button>
+  </div>`;
+}
+
 function openMovModal(mov) {
   const isEdit = !!mov;
   const today = new Date().toISOString().slice(0, 10);
-  openModal(isEdit ? 'Editar movimiento' : 'Nuevo movimiento',
+
+  // Renglones de gasto a precargar (compatibilidad con movimientos antiguos)
+  let items = [];
+  let generalComment = mov?.comentario || '';
+  if (mov) {
+    if (Array.isArray(mov.gastosItems) && mov.gastosItems.length) {
+      items = mov.gastosItems.map((x) => ({ concepto: x.concepto || '', monto: x.monto }));
+    } else if (mov.gastos) {
+      items = [{ concepto: mov.comentario || '', monto: mov.gastos }];
+      generalComment = '';
+    }
+  }
+  if (!items.length) items = [{ concepto: '', monto: '' }];
+
+  const fields =
     field('Fecha', 'fecha', 'date', mov?.fecha || today, 'required') +
     field('Séptima (ingreso)', 'septima', 'number', mov?.septima ?? 0, 'step="0.01" min="0"') +
-    field('Gastos', 'gastos', 'number', mov?.gastos ?? 0, 'step="0.01" min="0"') +
-    `<label class="field"><span>Comentarios (concepto del gasto)</span>
-      <textarea name="comentario" rows="3">${esc(mov?.comentario || '')}</textarea></label>`,
-    (data) => isEdit
-      ? api('PUT', `/api/movimientos/${mov.id}`, data)
-      : api('POST', '/api/movimientos', data));
+    `<div class="field">
+      <span>Gastos del día (concepto y monto)</span>
+      <div id="gastos-list">${items.map((it) => gastoRowHtml(it.concepto, it.monto)).join('')}</div>
+      <button type="button" class="btn ghost" id="add-gasto" style="margin-top:4px">+ Agregar concepto de gasto</button>
+      <div class="gasto-total muted" id="gasto-total" style="margin-top:8px"></div>
+    </div>` +
+    `<label class="field"><span>Comentario general (opcional)</span>
+      <textarea name="comentario" rows="2">${esc(generalComment)}</textarea></label>`;
+
+  openModal(isEdit ? 'Editar movimiento' : 'Nuevo movimiento', fields,
+    (data, form) => {
+      const gastosItems = $$('.gasto-row', form).map((row) => ({
+        concepto: $('.g-concepto', row).value.trim(),
+        monto: parseFloat($('.g-monto', row).value) || 0
+      })).filter((it) => it.concepto !== '' || it.monto !== 0);
+      const payload = {
+        fecha: data.fecha,
+        septima: data.septima,
+        comentario: data.comentario || '',
+        gastosItems
+      };
+      return isEdit
+        ? api('PUT', `/api/movimientos/${mov.id}`, payload)
+        : api('POST', '/api/movimientos', payload);
+    },
+    (form) => {
+      const list = $('#gastos-list', form);
+      const recalc = () => {
+        const total = $$('.g-monto', form).reduce((a, i) => a + (parseFloat(i.value) || 0), 0);
+        $('#gasto-total', form).textContent = 'Total de gastos del día: ' + money(total);
+      };
+      $('#add-gasto', form).onclick = () => { list.insertAdjacentHTML('beforeend', gastoRowHtml()); recalc(); };
+      form.addEventListener('input', (e) => { if (e.target.classList.contains('g-monto')) recalc(); });
+      form.addEventListener('click', (e) => {
+        const del = e.target.closest('.g-del');
+        if (!del) return;
+        const row = del.closest('.gasto-row');
+        if ($$('.gasto-row', form).length > 1) row.remove();
+        else { $('.g-concepto', row).value = ''; $('.g-monto', row).value = ''; }
+        recalc();
+      });
+      recalc();
+    });
 }
 
 function openClimaModal(c) {

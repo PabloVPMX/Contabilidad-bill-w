@@ -92,6 +92,20 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Suma de los renglones de gasto de un movimiento (o null si no usa renglones).
+function gastosItemsTotal(m) {
+  if (!Array.isArray(m.gastosItems) || !m.gastosItems.length) return null;
+  return m.gastosItems.reduce((a, it) => a + num(it.monto), 0);
+}
+
+// Limpia los renglones de gasto recibidos del cliente: descarta los vacíos.
+function parseGastosItems(items) {
+  if (!Array.isArray(items)) return null;
+  return items
+    .map((it) => ({ concepto: String((it && it.concepto) || '').trim(), monto: num(it && it.monto) }))
+    .filter((it) => it.concepto !== '' || it.monto !== 0);
+}
+
 // ---------------------------------------------------------------------------
 // Cálculo del estado completo (saldos corridos + resúmenes ejecutivos)
 // ---------------------------------------------------------------------------
@@ -102,7 +116,8 @@ function computeState() {
   const rows = movs.map((m) => {
     const saldoAnterior = saldo;
     const septima = num(m.septima);
-    const gastos = num(m.gastos);
+    const itemsTotal = gastosItemsTotal(m);
+    const gastos = itemsTotal != null ? itemsTotal : num(m.gastos);
     const total = saldoAnterior + septima - gastos;
     saldo = total;
     return {
@@ -112,6 +127,7 @@ function computeState() {
       septima,
       gastos,
       comentario: m.comentario || '',
+      gastosItems: Array.isArray(m.gastosItems) ? m.gastosItems : null,
       saldoAnterior,
       total
     };
@@ -192,10 +208,15 @@ app.get('/api/state', (req, res) => res.json(computeState()));
 
 // --- Movimientos ---
 app.post('/api/movimientos', (req, res) => {
-  const { fecha, septima, gastos, comentario } = req.body || {};
+  const { fecha, septima, gastos, comentario, gastosItems } = req.body || {};
   if (!fecha) return res.status(400).json({ error: 'La fecha es obligatoria' });
   DB.seq.mov += 1;
   const mov = { id: DB.seq.mov, fecha, septima: num(septima), gastos: num(gastos), comentario: comentario || '' };
+  const items = parseGastosItems(gastosItems);
+  if (items && items.length) {
+    mov.gastosItems = items;
+    mov.gastos = items.reduce((a, it) => a + num(it.monto), 0);
+  }
   // Insertar manteniendo orden cronológico por fecha
   const idx = DB.movimientos.findIndex((m) => (m.fecha || '') > fecha);
   if (idx === -1) DB.movimientos.push(mov);
@@ -208,11 +229,23 @@ app.put('/api/movimientos/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
   const m = DB.movimientos.find((x) => x.id === id);
   if (!m) return res.status(404).json({ error: 'No encontrado' });
-  const { fecha, septima, gastos, comentario } = req.body || {};
+  const { fecha, septima, gastos, comentario, gastosItems } = req.body || {};
   if (fecha !== undefined) m.fecha = fecha;
   if (septima !== undefined) m.septima = num(septima);
-  if (gastos !== undefined) m.gastos = num(gastos);
   if (comentario !== undefined) m.comentario = comentario;
+  if (gastosItems !== undefined) {
+    const items = parseGastosItems(gastosItems);
+    if (items && items.length) {
+      m.gastosItems = items;
+      m.gastos = items.reduce((a, it) => a + num(it.monto), 0);
+    } else {
+      delete m.gastosItems;
+      m.gastos = gastos !== undefined ? num(gastos) : 0;
+    }
+  } else if (gastos !== undefined) {
+    m.gastos = num(gastos);
+    delete m.gastosItems;
+  }
   DB.movimientos.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
   save();
   res.json(computeState());

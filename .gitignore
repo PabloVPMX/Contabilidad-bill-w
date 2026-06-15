@@ -3,5 +3,7 @@ npm-debug.log
 .DS_Store
 data_test
 data/backups
+data/db.json
 data/db.json.tmp
+*.xlsx
 ~$*

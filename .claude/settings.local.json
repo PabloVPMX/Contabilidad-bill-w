@@ -28,7 +28,12 @@
       "Bash(DATA_DIR=./data_test PORT=3999 node server.js)",
       "Bash(curl -s http://localhost:3999/api/health)",
       "Bash(curl -s -D - -o /dev/null http://localhost:3999/api/backup)",
-      "Bash(rm -rf ./data_test)"
+      "Bash(rm -rf ./data_test)",
+      "Bash(git rm *)",
+      "Bash(rm -rf node_modules)",
+      "Bash(rm -f 'Bill W.xlsx' '~$Bill W.xlsx' logo_600w.webp)",
+      "Bash(rm -f logo_600w.webp)",
+      "Bash(git add *)"
     ]
   }
 }

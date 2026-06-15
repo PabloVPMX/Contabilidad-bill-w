@@ -157,8 +157,18 @@ input, select, textarea {
   font-size: 14px; font-family: inherit; background: #fff; color: var(--ink);
 }
 input:focus, textarea:focus, select:focus { outline: 2px solid #bfdbfe; border-color: var(--brand); }
-label.field { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 14px; }
-label.field span { display: block; margin-bottom: 6px; }
+label.field, .field { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 14px; }
+label.field span, .field > span { display: block; margin-bottom: 6px; }
+
+/* Renglones dinámicos de gasto (concepto + monto) */
+.gasto-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.gasto-row input { margin: 0; }
+.gasto-total { font-weight: 600; }
+
+/* Desglose de gastos en la tabla de movimientos */
+.gastos-desglose { font-size: 13px; font-weight: 400; }
+.g-line { display: flex; justify-content: space-between; gap: 12px; }
+.g-line b { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---------- Modal ---------- */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: grid; place-items: center; z-index: 50; }
@@ -208,4 +218,5 @@ label.field span { display: block; margin-bottom: 6px; }
   .kpis { grid-template-columns: 1fr 1fr; }
   .kpi .value { font-size: 22px; }
   .topbar-actions .btn { padding: 8px 10px; font-size: 13px; }
+  .gasto-row { grid-template-columns: 1fr 90px auto; gap: 6px; }
 }
