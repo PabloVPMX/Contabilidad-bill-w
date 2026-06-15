@@ -286,7 +286,7 @@ function viewMeses(root) {
   card.innerHTML = `
     <div class="card-head"><h2>Resumen ejecutivo por mes ${filtroSufijo(MES_YEAR, MES_MONTH)}</h2></div>
     <div class="card-body">${filtered.length ? `
-      <table>
+      <table class="tbl">
         <thead><tr>
           <th>Mes</th><th class="num">Movs.</th>
           <th class="num">Ingresos</th><th class="num">Gastos</th>
@@ -294,13 +294,13 @@ function viewMeses(root) {
         </tr></thead>
         <tbody>
           ${filtered.map((m) => `<tr>
-            <td><b>${esc(mesLabel(m.mes))}</b></td>
-            <td class="num">${m.movimientos}</td>
-            <td class="num pos">${money(m.ingresos)}</td>
-            <td class="num neg">${money(m.gastos)}</td>
-            <td class="num ${m.neto >= 0 ? 'pos' : 'neg'}">${money(m.neto)}</td>
-            <td class="num"><b>${money(m.saldoFinalMes)}</b></td>
-            <td class="num"><button class="btn" data-pdf="${m.mes}">📄 PDF</button></td>
+            <td data-label="Mes"><b>${esc(mesLabel(m.mes))}</b></td>
+            <td data-label="Movs." class="num">${m.movimientos}</td>
+            <td data-label="Ingresos" class="num pos">${money(m.ingresos)}</td>
+            <td data-label="Gastos" class="num neg">${money(m.gastos)}</td>
+            <td data-label="Neto" class="num ${m.neto >= 0 ? 'pos' : 'neg'}">${money(m.neto)}</td>
+            <td data-label="Saldo fin de mes" class="num"><b>${money(m.saldoFinalMes)}</b></td>
+            <td class="cell-actions"><button class="btn" data-pdf="${m.mes}">📄 PDF</button></td>
           </tr>`).join('')}
         </tbody>
       </table>` : '<div class="empty">Sin meses para el filtro seleccionado.</div>'}</div>`;
@@ -353,7 +353,7 @@ function comentarioGastos(r) {
 
 function tablaMovs(rows, withActions) {
   if (!rows.length) return '<div class="empty">Sin movimientos.</div>';
-  return `<table>
+  return `<table class="tbl">
     <thead><tr>
       <th>Fecha</th><th class="num">Saldo ant.</th><th class="num">Séptima</th>
       <th class="num">Gastos</th><th class="num">Total</th><th>Comentarios</th>
@@ -361,13 +361,13 @@ function tablaMovs(rows, withActions) {
     </tr></thead>
     <tbody>
       ${rows.slice().reverse().map((r) => `<tr>
-        <td>${esc(fechaLabel(r.fecha))}</td>
-        <td class="num muted">${money(r.saldoAnterior)}</td>
-        <td class="num ${r.septima ? 'pos' : 'muted'}">${r.septima ? money(r.septima) : '—'}</td>
-        <td class="num ${r.gastos ? 'neg' : 'muted'}">${r.gastos ? money(r.gastos) : '—'}</td>
-        <td class="num"><b>${money(r.total)}</b></td>
-        <td>${comentarioGastos(r)}</td>
-        ${withActions ? `<td><div class="row-actions">
+        <td data-label="Fecha">${esc(fechaLabel(r.fecha))}</td>
+        <td data-label="Saldo ant." class="num muted">${money(r.saldoAnterior)}</td>
+        <td data-label="Séptima" class="num ${r.septima ? 'pos' : 'muted'}">${r.septima ? money(r.septima) : '—'}</td>
+        <td data-label="Gastos" class="num ${r.gastos ? 'neg' : 'muted'}">${r.gastos ? money(r.gastos) : '—'}</td>
+        <td data-label="Total" class="num"><b>${money(r.total)}</b></td>
+        <td data-label="Comentarios" class="cell-wide">${comentarioGastos(r)}</td>
+        ${withActions ? `<td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-mov="${r.id}">✏️</button>
           <button class="icon-btn" data-del-mov="${r.id}">🗑️</button>
         </div></td>` : ''}
@@ -390,12 +390,12 @@ function viewReserva(root) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><h2>Registros de reserva</h2></div>
-    <div class="card-body">${r.length ? `<table>
+    <div class="card-body">${r.length ? `<table class="tbl">
       <thead><tr><th>Mes</th><th class="num">Monto</th><th></th></tr></thead>
       <tbody>${r.map((x) => `<tr>
-        <td>${esc(x.mes ? mesLabel(x.mes) : '—')}</td>
-        <td class="num"><b>${money(x.monto)}</b></td>
-        <td><div class="row-actions">
+        <td data-label="Mes">${esc(x.mes ? mesLabel(x.mes) : '—')}</td>
+        <td data-label="Monto" class="num"><b>${money(x.monto)}</b></td>
+        <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-res="${x.id}">✏️</button>
           <button class="icon-btn" data-del-res="${x.id}">🗑️</button>
         </div></td>
@@ -421,14 +421,14 @@ function viewPromejora(root) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><h2>Movimientos de promejora</h2></div>
-    <div class="card-body">${movs.length ? `<table>
+    <div class="card-body">${movs.length ? `<table class="tbl">
       <thead><tr><th>Fecha</th><th class="num">Ingreso</th><th class="num">Gasto</th><th>Concepto</th><th></th></tr></thead>
       <tbody>${movs.slice().reverse().map((x) => `<tr>
-        <td>${esc(fechaLabel(x.fecha))}</td>
-        <td class="num ${x.ingreso ? 'pos' : 'muted'}">${x.ingreso ? money(x.ingreso) : '—'}</td>
-        <td class="num ${x.gasto ? 'neg' : 'muted'}">${x.gasto ? money(x.gasto) : '—'}</td>
-        <td>${comentarioGastos(x)}</td>
-        <td><div class="row-actions">
+        <td data-label="Fecha">${esc(fechaLabel(x.fecha))}</td>
+        <td data-label="Ingreso" class="num ${x.ingreso ? 'pos' : 'muted'}">${x.ingreso ? money(x.ingreso) : '—'}</td>
+        <td data-label="Gasto" class="num ${x.gasto ? 'neg' : 'muted'}">${x.gasto ? money(x.gasto) : '—'}</td>
+        <td data-label="Concepto" class="cell-wide">${comentarioGastos(x)}</td>
+        <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-pro="${x.id}">✏️</button>
           <button class="icon-btn" data-del-pro="${x.id}">🗑️</button>
         </div></td>
@@ -450,12 +450,12 @@ function viewClima(root) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><h2>Aportaciones</h2></div>
-    <div class="card-body">${c.length ? `<table>
+    <div class="card-body">${c.length ? `<table class="tbl">
       <thead><tr><th>Nombre</th><th class="num">Monto</th><th></th></tr></thead>
       <tbody>${c.map((x) => `<tr>
-        <td>${esc(x.nombre)}</td>
-        <td class="num"><b>${money(x.monto)}</b></td>
-        <td><div class="row-actions">
+        <td data-label="Nombre">${esc(x.nombre)}</td>
+        <td data-label="Monto" class="num"><b>${money(x.monto)}</b></td>
+        <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-cli="${x.id}">✏️</button>
           <button class="icon-btn" data-del-cli="${x.id}">🗑️</button>
         </div></td>

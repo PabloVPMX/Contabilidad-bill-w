@@ -215,13 +215,42 @@ label.field span, .field > span { display: block; margin-bottom: 6px; }
   .topbar h1 { font-size: 18px; }
   .topbar-actions { margin-left: auto; }
 
-  /* Las tablas se desplazan horizontalmente para no romper el diseño */
+  /* Las tablas de datos anchas pueden desplazarse horizontalmente en tablets */
   .card-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .card-body table { min-width: 560px; }
+  .card-body table.tbl { min-width: 560px; }
 
   /* Gráfico mensual más compacto */
   .barrow { grid-template-columns: 58px 1fr 88px; gap: 8px; }
   .barmeta { font-size: 12px; }
+}
+
+/* En móvil, cada fila de las tablas de datos se apila como tarjeta
+   (Etiqueta: valor). Así la exploración es solo vertical, sin scroll lateral. */
+@media (max-width: 600px) {
+  .card-body { overflow-x: visible; }
+  table.tbl, table.tbl tbody, table.tbl tr, table.tbl td { display: block; width: 100%; }
+  table.tbl { min-width: 0; }
+  table.tbl thead { display: none; }
+  table.tbl tbody tr {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2);
+    margin: 12px; padding: 4px 0; overflow: hidden;
+  }
+  table.tbl tbody tr:hover { background: var(--bg-2); }
+  table.tbl td {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    text-align: right; border: 0; padding: 9px 14px;
+  }
+  table.tbl td::before {
+    content: attr(data-label); color: var(--muted); font-weight: 600;
+    text-align: left; flex: 0 0 auto;
+  }
+  /* Celdas anchas (desglose de gastos): etiqueta arriba, contenido abajo */
+  table.tbl td.cell-wide { flex-direction: column; align-items: stretch; text-align: left; }
+  table.tbl td.cell-wide::before { margin-bottom: 6px; }
+  /* Acciones siempre visibles y alineadas a la derecha */
+  table.tbl td.cell-actions { justify-content: flex-end; }
+  table.tbl td.cell-actions::before { display: none; }
+  table.tbl .row-actions { opacity: 1; }
 }
 
 @media (max-width: 480px) {
