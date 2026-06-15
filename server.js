@@ -94,7 +94,11 @@ app.use((req, res, next) => {
   res.status(200).send(loginPage(false));
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  // Revalidar siempre con el servidor: tras un deploy, el navegador toma la
+  // versión nueva de inmediato (con ETag la revalidación es muy ligera).
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
+}));
 
 // ---------------------------------------------------------------------------
 // Almacenamiento (archivo JSON con escritura atómica). Suficiente y robusto
