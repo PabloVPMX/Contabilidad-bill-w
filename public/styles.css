@@ -230,17 +230,19 @@ label.field span, .field > span { display: block; margin-bottom: 6px; }
 /* En móvil, cada fila de las tablas de datos se apila como tarjeta
    (Etiqueta a la izquierda, valor a la derecha). Solo scroll vertical. */
 @media (max-width: 600px) {
-  .card-body { overflow-x: visible; }
-  table.tbl, table.tbl tbody, table.tbl tr, table.tbl td { display: block; width: 100%; }
-  table.tbl { min-width: 0; }
+  .card-body { overflow-x: hidden; }
+  table.tbl, table.tbl tbody, table.tbl tr, table.tbl td { display: block; }
+  /* Anula el min-width: 560px del rango tablet (misma especificidad, va después) */
+  .card-body table.tbl { min-width: 0; width: 100%; max-width: 100%; }
   table.tbl thead { display: none; }
   table.tbl tbody tr {
     border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2);
-    margin: 12px; padding: 6px 4px;
+    margin: 12px 0; padding: 6px 4px;
   }
   table.tbl tbody tr:hover { background: var(--bg-2); }
   table.tbl td {
     text-align: right; border: 0; padding: 10px 14px; overflow: hidden;
+    overflow-wrap: anywhere;
   }
   table.tbl td .lbl {
     display: inline-block; float: left; color: var(--muted); font-weight: 600;
