@@ -49,7 +49,9 @@
       "Bash(curl -s -b /tmp/ck.txt -o /dev/null -w \"  GET /api/state -> %{http_code}\\\\n\" http://localhost:3996/api/state)",
       "Bash(curl -s -b /tmp/ck.txt -c /tmp/ck.txt -X POST -o /dev/null -w \"  POST /api/logout -> %{http_code}\\\\n\" http://localhost:3996/api/logout)",
       "Bash(curl -s -o /dev/null -w \"  POST form -> %{http_code} \\(Location: %{redirect_url}\\)\\\\n\" -H \"Accept: text/html\" --data-urlencode \"word=recuperacion\" http://localhost:3996/api/login)",
-      "Bash(git ls-remote *)"
+      "Bash(git ls-remote *)",
+      "Bash(curl -s -o /dev/null -w \"GitHub repo -> HTTP %{http_code}\\\\n\" https://github.com/PabloVPMX/Contabilidad-bill-w)",
+      "Bash(curl -s https://api.github.com/repos/PabloVPMX/Contabilidad-bill-w)"
     ]
   }
 }
