@@ -80,6 +80,8 @@ body {
 }
 .btn-backup:hover { background: rgba(255,255,255,.12); color: #fff; }
 .sidebar-foot { text-align: center; font-size: 11px; color: #64748b; margin-top: 12px; }
+.logout-link { background: transparent; border: 0; color: #64748b; font-size: 12px; cursor: pointer; padding: 4px; }
+.logout-link:hover { color: #f87171; text-decoration: underline; }
 
 /* Botón hamburguesa (solo móvil) y fondo del cajón */
 .menu-toggle {
@@ -101,6 +103,11 @@ body {
 .topbar-actions { display: flex; gap: 10px; }
 
 .view-root { display: flex; flex-direction: column; gap: 18px; }
+
+/* Barra de filtro (p. ej. selector de año en el resumen anual) */
+.filterbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.filterbar label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #334155; }
+.filterbar select { width: auto; min-width: 110px; }
 
 /* ---------- Cards / KPIs ---------- */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }

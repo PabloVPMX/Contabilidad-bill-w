@@ -33,7 +33,22 @@
       "Bash(rm -rf node_modules)",
       "Bash(rm -f 'Bill W.xlsx' '~$Bill W.xlsx' logo_600w.webp)",
       "Bash(rm -f logo_600w.webp)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(DATA_DIR=./data_test PORT=3997 node server.js)",
+      "Bash(curl -s -o /dev/null -w \"GET /api/state -> %{http_code}\\\\n\" http://localhost:3997/api/state)",
+      "Bash(curl -s http://localhost:3997/)",
+      "Bash(curl -s -o /dev/null -w \"POST /api/login \\(mala\\) -> %{http_code}\\\\n\" -H \"Content-Type: application/json\" -d '{\"word\":\"otra\"}' http://localhost:3997/api/login)",
+      "Bash(curl -s -c /tmp/ck.txt -o /dev/null -w \"POST /api/login \\(ok\\) -> %{http_code}\\\\n\" -H \"Content-Type: application/json\" -d '{\"word\":\"recuperacion\"}' http://localhost:3997/api/login)",
+      "Bash(curl -s -b /tmp/ck.txt -o /dev/null -w \"GET /api/state \\(con cookie\\) -> %{http_code}\\\\n\" http://localhost:3997/api/state)",
+      "Bash(curl -s -b /tmp/ck.txt -c /tmp/ck.txt -o /dev/null -w \"POST /api/logout -> %{http_code}\\\\n\" http://localhost:3997/api/logout)",
+      "Bash(curl -s -b /tmp/ck.txt -o /dev/null -w \"GET /api/state \\(tras logout\\) -> %{http_code}\\\\n\" http://localhost:3997/api/state)",
+      "Bash(DATA_DIR=./data_test PORT=3996 node server.js)",
+      "Bash(curl -s -c /tmp/ck.txt -o /dev/null -d '{\"word\":\"recuperacion\"}' -H \"Content-Type: application/json\" http://localhost:3996/api/login)",
+      "Bash(curl -s -b /tmp/ck.txt -o /dev/null -w \"  GET /api/state -> %{http_code}\\\\n\" http://localhost:3996/api/state)",
+      "Bash(curl -s -b /tmp/ck.txt -c /tmp/ck.txt -X POST -o /dev/null -w \"  POST /api/logout -> %{http_code}\\\\n\" http://localhost:3996/api/logout)",
+      "Bash(curl -s -o /dev/null -w \"  POST form -> %{http_code} \\(Location: %{redirect_url}\\)\\\\n\" -H \"Accept: text/html\" --data-urlencode \"word=recuperacion\" http://localhost:3996/api/login)"
     ]
   }
 }

@@ -3,6 +3,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,7 +17,83 @@ const SEED_FILE = path.join(__dirname, 'data', 'seed.json');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const BACKUP_KEEP = parseInt(process.env.BACKUP_KEEP || '30', 10); // días a conservar
 
+// ---------------------------------------------------------------------------
+// Acceso por palabra secreta (sin usuario/contraseña). Se puede cambiar con
+// la variable de entorno SECRET_WORD. La cookie guarda un hash, no la palabra.
+// ---------------------------------------------------------------------------
+const SECRET_WORD = (process.env.SECRET_WORD || 'recuperacion').trim().toLowerCase();
+const AUTH_TOKEN = crypto.createHash('sha256').update('billw:' + SECRET_WORD).digest('hex');
+
+function parseCookies(req) {
+  return (req.headers.cookie || '').split(';').reduce((acc, part) => {
+    const i = part.indexOf('=');
+    if (i > -1) acc[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    return acc;
+  }, {});
+}
+const isAuthed = (req) => parseCookies(req).auth === AUTH_TOKEN;
+
+function loginPage(error) {
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso · Grupo Bill W</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+        font-family: "Segoe UI", system-ui, Arial, sans-serif; background: #0f172a; color: #e5e7eb; padding: 20px; }
+      .box { width: min(380px, 100%); background: #111827; border: 1px solid rgba(255,255,255,.08);
+        border-radius: 16px; padding: 28px 24px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+      img { width: 64px; height: 64px; border-radius: 12px; background: #fff; padding: 6px; object-fit: contain; }
+      h1 { font-size: 18px; margin: 14px 0 4px; }
+      p { color: #94a3b8; font-size: 13px; margin: 0 0 20px; }
+      input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #334155;
+        background: #0b1220; color: #fff; font-size: 15px; text-align: center; }
+      button { width: 100%; margin-top: 12px; padding: 12px; border: 0; border-radius: 10px;
+        background: #2563eb; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+      button:hover { background: #1d4ed8; }
+      .err { color: #f87171; font-size: 13px; margin-top: 12px; min-height: 18px; }
+    </style></head><body>
+    <form class="box" method="POST" action="/api/login">
+      <img src="/logo.webp" alt="A.A.">
+      <h1>Grupo Bill W · Contabilidad</h1>
+      <p>Ingresa la palabra de acceso para continuar.</p>
+      <input name="word" type="password" placeholder="Palabra de acceso" autofocus autocomplete="off" required>
+      <button type="submit">Entrar</button>
+      <div class="err">${error ? 'Palabra incorrecta. Intenta de nuevo.' : ''}</div>
+    </form>
+  </body></html>`;
+}
+
 app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: false })); // formulario de acceso
+
+// Iniciar/cerrar sesión
+app.post('/api/login', (req, res) => {
+  const word = String((req.body && req.body.word) || '').trim().toLowerCase();
+  if (word && word === SECRET_WORD) {
+    const oneYear = 60 * 60 * 24 * 365;
+    res.setHeader('Set-Cookie', `auth=${AUTH_TOKEN}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${oneYear}`);
+    // Si vino del formulario HTML, redirige; si vino por fetch, responde JSON.
+    if ((req.headers.accept || '').includes('text/html')) return res.redirect('/');
+    return res.json({ ok: true });
+  }
+  if ((req.headers.accept || '').includes('text/html')) return res.status(401).send(loginPage(true));
+  res.status(401).json({ error: 'Palabra incorrecta' });
+});
+
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'auth=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+  res.json({ ok: true });
+});
+
+// A partir de aquí, todo requiere haber ingresado la palabra de acceso.
+app.use((req, res, next) => {
+  if (isAuthed(req)) return next();
+  if (req.path === '/logo.webp') return next(); // logo visible en la página de acceso
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'No autorizado' });
+  res.status(200).send(loginPage(false));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------------------------------------------------------------------------

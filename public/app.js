@@ -51,7 +51,7 @@ function setView(v) {
 }
 
 const TITLES = {
-  general: 'Resumen general',
+  general: 'Resumen anual',
   meses: 'Resúmenes por mes',
   movimientos: 'Movimientos',
   reserva: 'Reserva',
@@ -95,76 +95,115 @@ function btn(label, cls, onClick) {
 }
 
 // ---------------------------------------------------------------------------
-// Vista: Resumen general (ejecutivo)
+// Vista: Resumen anual (ejecutivo, filtrado por año)
+let GEN_YEAR = null; // año seleccionado en el resumen anual
+
+function aniosDisponibles() {
+  const set = new Set();
+  STATE.rows.forEach((r) => { if (r.fecha) set.add(r.fecha.slice(0, 4)); });
+  STATE.reserva.forEach((r) => { if (r.mes) set.add(r.mes.slice(0, 4)); });
+  STATE.promejora.forEach((p) => { if (p.fecha) set.add(p.fecha.slice(0, 4)); });
+  if (!set.size) set.add(String(new Date().getFullYear()));
+  return [...set].sort();
+}
+
 function viewGeneral(root) {
-  const r = STATE.resumen;
-  const neto = r.totalSeptimas - r.totalGastos;
+  const years = aniosDisponibles();
+  if (!GEN_YEAR || !years.includes(GEN_YEAR)) GEN_YEAR = years[years.length - 1];
+
+  // Movimientos del año seleccionado
+  const yearRows = STATE.rows.filter((x) => (x.fecha || '').startsWith(GEN_YEAR));
+  const totalSeptimas = yearRows.reduce((a, x) => a + x.septima, 0);
+  const totalGastos = yearRows.reduce((a, x) => a + x.gastos, 0);
+  const saldoInicial = yearRows.length ? yearRows[0].saldoAnterior : STATE.resumen.saldoActual;
+  const saldoFinal = yearRows.length ? yearRows[yearRows.length - 1].total : saldoInicial;
+  const neto = totalSeptimas - totalGastos;
+
+  // Fondos del año
+  const totalReserva = STATE.reserva
+    .filter((x) => (x.mes || '').startsWith(GEN_YEAR))
+    .reduce((a, x) => a + (Number(x.monto) || 0), 0);
+  const proRows = STATE.promejora.filter((p) => (p.fecha || '').startsWith(GEN_YEAR));
+  const promejora = proRows.reduce((a, p) => a + (Number(p.ingreso) || 0) - (Number(p.gasto) || 0), 0);
+  const totalClima = STATE.resumen.totalClima; // sin fecha: se muestra el acumulado
+
+  // Selector de año
+  const bar = document.createElement('div');
+  bar.className = 'filterbar';
+  bar.innerHTML = `
+    <label>Año:
+      <select id="gen-year">
+        ${years.map((y) => `<option value="${y}"${y === GEN_YEAR ? ' selected' : ''}>${y}</option>`).join('')}
+      </select>
+    </label>
+    <span class="muted">${yearRows.length} movimientos en ${GEN_YEAR}</span>`;
+  root.appendChild(bar);
 
   const kpis = document.createElement('div');
   kpis.className = 'kpis';
   kpis.innerHTML = `
     <div class="kpi accent">
-      <div class="label">Saldo actual</div>
-      <div class="value">${money(r.saldoActual)}</div>
-      <div class="sub">${r.numMovimientos} movimientos registrados</div>
+      <div class="label">Saldo al cierre de ${GEN_YEAR}</div>
+      <div class="value">${money(saldoFinal)}</div>
+      <div class="sub">Saldo inicial del año ${money(saldoInicial)}</div>
     </div>
     <div class="kpi">
-      <div class="label">Total séptimas (ingresos)</div>
-      <div class="value pos">${money(r.totalSeptimas)}</div>
-      <div class="sub">+ saldo inicial ${money(r.saldoInicial)}</div>
+      <div class="label">Séptimas del año (ingresos)</div>
+      <div class="value pos">${money(totalSeptimas)}</div>
     </div>
     <div class="kpi">
-      <div class="label">Total gastos</div>
-      <div class="value neg">${money(r.totalGastos)}</div>
+      <div class="label">Gastos del año</div>
+      <div class="value neg">${money(totalGastos)}</div>
       <div class="sub">Neto ${money(neto)}</div>
     </div>
     <div class="kpi">
-      <div class="label">Reserva</div>
-      <div class="value">${money(r.totalReserva)}</div>
+      <div class="label">Reserva del año</div>
+      <div class="value">${money(totalReserva)}</div>
       <div class="sub">Fondo del saldo final mensual</div>
     </div>
     <div class="kpi">
       <div class="label">Aportación clima</div>
-      <div class="value">${money(r.totalClima)}</div>
-      <div class="sub">Independiente del saldo general</div>
+      <div class="value">${money(totalClima)}</div>
+      <div class="sub">Acumulado (sin fecha)</div>
     </div>
     <div class="kpi">
-      <div class="label">Promejora</div>
-      <div class="value">${money(r.promejora)}</div>
+      <div class="label">Promejora del año</div>
+      <div class="value">${money(promejora)}</div>
       <div class="sub">Fondo complementario</div>
     </div>`;
   root.appendChild(kpis);
 
-  // Resumen tipo hoja original
+  // Resumen ejecutivo del año
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <div class="card-head"><h2>Resumen ejecutivo general</h2></div>
+    <div class="card-head"><h2>Resumen ejecutivo · ${GEN_YEAR}</h2></div>
     <div class="card-body">
       <table>
         <tbody>
-          <tr><td>Saldo inicial</td><td class="num">${money(r.saldoInicial)}</td></tr>
-          <tr><td>Total séptimas (ingresos)</td><td class="num pos">${money(r.totalSeptimas)}</td></tr>
-          <tr><td><b>Total ingresos</b> (saldo inicial + séptimas)</td><td class="num"><b>${money(r.totalIngresos)}</b></td></tr>
-          <tr><td>Total gastos</td><td class="num neg">${money(r.totalGastos)}</td></tr>
-          <tr><td><b>Saldo actual</b></td><td class="num"><b>${money(r.saldoActual)}</b></td></tr>
-          <tr><td>Reserva</td><td class="num">${money(r.totalReserva)}</td></tr>
-          <tr><td>Aportación clima (independiente)</td><td class="num">${money(r.totalClima)}</td></tr>
-          <tr><td>Promejora</td><td class="num">${money(r.promejora)}</td></tr>
+          <tr><td>Saldo inicial del año</td><td class="num">${money(saldoInicial)}</td></tr>
+          <tr><td>Séptimas del año (ingresos)</td><td class="num pos">${money(totalSeptimas)}</td></tr>
+          <tr><td><b>Total ingresos</b> (saldo inicial + séptimas)</td><td class="num"><b>${money(saldoInicial + totalSeptimas)}</b></td></tr>
+          <tr><td>Gastos del año</td><td class="num neg">${money(totalGastos)}</td></tr>
+          <tr><td><b>Saldo al cierre del año</b></td><td class="num"><b>${money(saldoFinal)}</b></td></tr>
+          <tr><td>Reserva del año</td><td class="num">${money(totalReserva)}</td></tr>
+          <tr><td>Aportación clima (acumulado)</td><td class="num">${money(totalClima)}</td></tr>
+          <tr><td>Promejora del año</td><td class="num">${money(promejora)}</td></tr>
         </tbody>
       </table>
     </div>`;
   root.appendChild(card);
 
-  // Mini gráfico mensual
-  root.appendChild(monthlyBars());
+  // Gráfico mensual del año
+  root.appendChild(monthlyBars(STATE.meses.filter((m) => (m.mes || '').startsWith(GEN_YEAR))));
+
+  $('#gen-year').onchange = (e) => { GEN_YEAR = e.target.value; render(); };
 }
 
-function monthlyBars() {
-  const meses = STATE.meses;
+function monthlyBars(meses) {
   const card = document.createElement('div');
   card.className = 'card';
-  if (!meses.length) { card.innerHTML = '<div class="empty">Aún no hay movimientos.</div>'; return card; }
+  if (!meses.length) { card.innerHTML = '<div class="empty">Sin movimientos en este año.</div>'; return card; }
   const max = Math.max(...meses.map((m) => Math.max(m.ingresos, m.gastos)), 1);
   card.innerHTML = `<div class="card-head"><h2>Ingresos vs gastos por mes</h2></div>
     <div class="barlist">${meses.map((m) => `
@@ -564,13 +603,15 @@ function openMovModal(mov) {
 
   // Renglones de gasto a precargar (compatibilidad con movimientos antiguos)
   let items = [];
-  let generalComment = mov?.comentario || '';
+  let keepComment = '';
   if (mov) {
     if (Array.isArray(mov.gastosItems) && mov.gastosItems.length) {
       items = mov.gastosItems.map((x) => ({ concepto: x.concepto || '', monto: x.monto }));
+      keepComment = mov.comentario || ''; // se conserva si existía
     } else if (mov.gastos) {
-      items = [{ concepto: mov.comentario || '', monto: mov.gastos }];
-      generalComment = '';
+      items = [{ concepto: mov.comentario || '', monto: mov.gastos }]; // el comentario pasa a ser concepto
+    } else {
+      keepComment = mov.comentario || ''; // ingreso sin gastos: se conserva el comentario previo
     }
   }
   if (!items.length) items = [{ concepto: '', monto: '' }];
@@ -583,9 +624,7 @@ function openMovModal(mov) {
       <div id="gastos-list">${items.map((it) => gastoRowHtml(it.concepto, it.monto)).join('')}</div>
       <button type="button" class="btn ghost" id="add-gasto" style="margin-top:4px">+ Agregar concepto de gasto</button>
       <div class="gasto-total muted" id="gasto-total" style="margin-top:8px"></div>
-    </div>` +
-    `<label class="field"><span>Comentario general (opcional)</span>
-      <textarea name="comentario" rows="2">${esc(generalComment)}</textarea></label>`;
+    </div>`;
 
   openModal(isEdit ? 'Editar movimiento' : 'Nuevo movimiento', fields,
     (data, form) => {
@@ -596,7 +635,7 @@ function openMovModal(mov) {
       const payload = {
         fecha: data.fecha,
         septima: data.septima,
-        comentario: data.comentario || '',
+        comentario: keepComment,
         gastosItems
       };
       return isEdit
@@ -688,5 +727,11 @@ $('#modal-backdrop').onclick = (e) => { if (e.target.id === 'modal-backdrop') cl
 // Menú móvil (cajón lateral)
 $('#menu-toggle').onclick = () => $('.app').classList.toggle('nav-open');
 $('#nav-backdrop').onclick = () => $('.app').classList.remove('nav-open');
+
+// Cerrar sesión
+$('#logout-btn').onclick = async () => {
+  await api('POST', '/api/logout');
+  location.reload();
+};
 
 load();
