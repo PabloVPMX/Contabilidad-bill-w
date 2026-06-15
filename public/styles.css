@@ -233,24 +233,25 @@ label.field span, .field > span { display: block; margin-bottom: 6px; }
   table.tbl thead { display: none; }
   table.tbl tbody tr {
     border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2);
-    margin: 12px; padding: 4px 0; overflow: hidden;
+    margin: 12px; padding: 6px 4px;
   }
   table.tbl tbody tr:hover { background: var(--bg-2); }
+  /* Cada celda: etiqueta flotando a la izquierda, valor alineado a la derecha */
   table.tbl td {
-    display: flex; justify-content: space-between; align-items: center; gap: 16px;
-    text-align: right; border: 0; padding: 9px 14px;
+    display: block; text-align: right; border: 0; padding: 9px 14px;
+    overflow: hidden; /* contiene el float de la etiqueta */
   }
   table.tbl td::before {
-    content: attr(data-label); color: var(--muted); font-weight: 600;
-    text-align: left; flex: 0 0 auto;
+    content: attr(data-label); float: left; color: var(--muted); font-weight: 600;
+    text-align: left; padding-right: 12px;
   }
   /* Celdas anchas (desglose de gastos): etiqueta arriba, contenido abajo */
-  table.tbl td.cell-wide { flex-direction: column; align-items: stretch; text-align: left; }
-  table.tbl td.cell-wide::before { margin-bottom: 6px; }
+  table.tbl td.cell-wide { text-align: left; }
+  table.tbl td.cell-wide::before { float: none; display: block; margin-bottom: 6px; padding-right: 0; }
   /* Acciones siempre visibles y alineadas a la derecha */
-  table.tbl td.cell-actions { justify-content: flex-end; }
+  table.tbl td.cell-actions { text-align: right; }
   table.tbl td.cell-actions::before { display: none; }
-  table.tbl .row-actions { opacity: 1; }
+  table.tbl td.cell-actions .row-actions { opacity: 1; display: inline-flex; }
 }
 
 @media (max-width: 480px) {
