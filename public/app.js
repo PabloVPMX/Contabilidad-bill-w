@@ -2,13 +2,19 @@
 
 let STATE = null;
 let VIEW = 'general';
-let MOV_FILTER = 'all'; // filtro por mes en la vista Movimientos
+let MOV_YEAR = 'all', MOV_MONTH = 'all'; // filtros de la vista Movimientos
+let MES_YEAR = 'all', MES_MONTH = 'all'; // filtros de la vista Resúmenes por mes
 
 const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+const elFromHtml = (html) => {
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+};
 
 const money = (n) => '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -223,16 +229,63 @@ function monthlyBars(meses) {
 }
 
 // ---------------------------------------------------------------------------
+// Filtros reutilizables por Año y Mes
+function aniosDe(fechas) {
+  return [...new Set(fechas.filter(Boolean).map((f) => f.slice(0, 4)))].sort();
+}
+
+// Devuelve el HTML de dos selectores (Año y Mes) con el prefijo de id dado.
+function yearMonthFilterHtml(idPrefix, years, selYear, selMonth) {
+  const opt = (v, label, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>${label}</option>`;
+  return `<div class="filterbar">
+    <label>Año:
+      <select id="${idPrefix}-year">
+        ${opt('all', 'Todos', selYear)}
+        ${years.map((y) => opt(y, y, selYear)).join('')}
+      </select>
+    </label>
+    <label>Mes:
+      <select id="${idPrefix}-month">
+        ${opt('all', 'Todos', selMonth)}
+        ${MESES_NOMBRE.map((nm, i) => opt(String(i + 1).padStart(2, '0'), nm, selMonth)).join('')}
+      </select>
+    </label>
+  </div>`;
+}
+
+// Texto descriptivo del filtro activo para los encabezados.
+function filtroSufijo(year, month) {
+  if (year === 'all' && month === 'all') return '(todos)';
+  const partes = [];
+  if (month !== 'all') partes.push(MESES_NOMBRE[parseInt(month, 10) - 1]);
+  if (year !== 'all') partes.push(year);
+  return '· ' + partes.join(' ');
+}
+
+// ¿La fecha (YYYY-MM-DD) o el mes (YYYY-MM) pasan el filtro?
+function pasaFiltro(ymd, year, month) {
+  const y = (ymd || '').slice(0, 4);
+  const mo = (ymd || '').slice(5, 7);
+  return (year === 'all' || y === year) && (month === 'all' || mo === month);
+}
+
+// ---------------------------------------------------------------------------
 // Vista: Resúmenes por mes
 function viewMeses(root) {
   const meses = STATE.meses;
   if (!meses.length) { root.innerHTML = '<div class="card"><div class="empty">Aún no hay movimientos.</div></div>'; return; }
 
+  const years = aniosDe(meses.map((m) => m.mes));
+  if (MES_YEAR !== 'all' && !years.includes(MES_YEAR)) MES_YEAR = 'all';
+  const filtered = meses.filter((m) => pasaFiltro(m.mes, MES_YEAR, MES_MONTH));
+
+  root.appendChild(elFromHtml(yearMonthFilterHtml('mes', years, MES_YEAR, MES_MONTH)));
+
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <div class="card-head"><h2>Resumen ejecutivo por mes</h2></div>
-    <div class="card-body">
+    <div class="card-head"><h2>Resumen ejecutivo por mes ${filtroSufijo(MES_YEAR, MES_MONTH)}</h2></div>
+    <div class="card-body">${filtered.length ? `
       <table>
         <thead><tr>
           <th>Mes</th><th class="num">Movs.</th>
@@ -240,7 +293,7 @@ function viewMeses(root) {
           <th class="num">Neto</th><th class="num">Saldo fin de mes</th><th></th>
         </tr></thead>
         <tbody>
-          ${meses.map((m) => `<tr>
+          ${filtered.map((m) => `<tr>
             <td><b>${esc(mesLabel(m.mes))}</b></td>
             <td class="num">${m.movimientos}</td>
             <td class="num pos">${money(m.ingresos)}</td>
@@ -250,9 +303,11 @@ function viewMeses(root) {
             <td class="num"><button class="btn" data-pdf="${m.mes}">📄 PDF</button></td>
           </tr>`).join('')}
         </tbody>
-      </table>
-    </div>`;
+      </table>` : '<div class="empty">Sin meses para el filtro seleccionado.</div>'}</div>`;
   root.appendChild(card);
+
+  $('#mes-year').onchange = (e) => { MES_YEAR = e.target.value; render(); };
+  $('#mes-month').onchange = (e) => { MES_MONTH = e.target.value; render(); };
 }
 
 // ---------------------------------------------------------------------------
@@ -267,28 +322,22 @@ function viewMovimientos(root) {
     <div class="kpi accent"><div class="label">Saldo actual</div><div class="value">${money(r.saldoActual)}</div></div>`;
   root.appendChild(kpis);
 
-  // Filtro por mes
-  const meses = STATE.meses.map((m) => m.mes);
-  if (MOV_FILTER !== 'all' && !meses.includes(MOV_FILTER)) MOV_FILTER = 'all';
-  const filtered = MOV_FILTER === 'all' ? STATE.rows : STATE.rows.filter((x) => x.mes === MOV_FILTER);
+  // Filtros por año y mes
+  const years = aniosDe(STATE.rows.map((x) => x.fecha));
+  if (MOV_YEAR !== 'all' && !years.includes(MOV_YEAR)) MOV_YEAR = 'all';
+  const filtered = STATE.rows.filter((x) => pasaFiltro(x.fecha, MOV_YEAR, MOV_MONTH));
+
+  root.appendChild(elFromHtml(yearMonthFilterHtml('mov', years, MOV_YEAR, MOV_MONTH)));
 
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <div class="card-head">
-      <h2>Movimientos ${MOV_FILTER === 'all' ? '(todos)' : '· ' + esc(mesLabel(MOV_FILTER))}</h2>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#334155;margin:0">
-        Mes:
-        <select id="mov-filter" style="width:auto;min-width:150px">
-          <option value="all"${MOV_FILTER === 'all' ? ' selected' : ''}>Todos los meses</option>
-          ${meses.map((m) => `<option value="${m}"${MOV_FILTER === m ? ' selected' : ''}>${esc(mesLabel(m))}</option>`).join('')}
-        </select>
-      </label>
-    </div>
+    <div class="card-head"><h2>Movimientos ${filtroSufijo(MOV_YEAR, MOV_MONTH)}</h2></div>
     <div class="card-body">${tablaMovs(filtered, true)}</div>`;
   root.appendChild(card);
 
-  $('#mov-filter').onchange = (e) => { MOV_FILTER = e.target.value; render(); };
+  $('#mov-year').onchange = (e) => { MOV_YEAR = e.target.value; render(); };
+  $('#mov-month').onchange = (e) => { MOV_MONTH = e.target.value; render(); };
 }
 
 function comentarioGastos(r) {
