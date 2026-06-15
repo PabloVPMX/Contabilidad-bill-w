@@ -294,12 +294,12 @@ function viewMeses(root) {
         </tr></thead>
         <tbody>
           ${filtered.map((m) => `<tr>
-            <td data-label="Mes"><b>${esc(mesLabel(m.mes))}</b></td>
-            <td data-label="Movs." class="num">${m.movimientos}</td>
-            <td data-label="Ingresos" class="num pos">${money(m.ingresos)}</td>
-            <td data-label="Gastos" class="num neg">${money(m.gastos)}</td>
-            <td data-label="Neto" class="num ${m.neto >= 0 ? 'pos' : 'neg'}">${money(m.neto)}</td>
-            <td data-label="Saldo fin de mes" class="num"><b>${money(m.saldoFinalMes)}</b></td>
+            <td><span class="lbl">Mes</span><b>${esc(mesLabel(m.mes))}</b></td>
+            <td class="num"><span class="lbl">Movs.</span>${m.movimientos}</td>
+            <td class="num pos"><span class="lbl">Ingresos</span>${money(m.ingresos)}</td>
+            <td class="num neg"><span class="lbl">Gastos</span>${money(m.gastos)}</td>
+            <td class="num ${m.neto >= 0 ? 'pos' : 'neg'}"><span class="lbl">Neto</span>${money(m.neto)}</td>
+            <td class="num"><span class="lbl">Saldo fin de mes</span><b>${money(m.saldoFinalMes)}</b></td>
             <td class="cell-actions"><button class="btn" data-pdf="${m.mes}">📄 PDF</button></td>
           </tr>`).join('')}
         </tbody>
@@ -361,12 +361,12 @@ function tablaMovs(rows, withActions) {
     </tr></thead>
     <tbody>
       ${rows.slice().reverse().map((r) => `<tr>
-        <td data-label="Fecha">${esc(fechaLabel(r.fecha))}</td>
-        <td data-label="Saldo ant." class="num muted">${money(r.saldoAnterior)}</td>
-        <td data-label="Séptima" class="num ${r.septima ? 'pos' : 'muted'}">${r.septima ? money(r.septima) : '—'}</td>
-        <td data-label="Gastos" class="num ${r.gastos ? 'neg' : 'muted'}">${r.gastos ? money(r.gastos) : '—'}</td>
-        <td data-label="Total" class="num"><b>${money(r.total)}</b></td>
-        <td data-label="Comentarios" class="cell-wide">${comentarioGastos(r)}</td>
+        <td><span class="lbl">Fecha</span>${esc(fechaLabel(r.fecha))}</td>
+        <td class="num muted"><span class="lbl">Saldo ant.</span>${money(r.saldoAnterior)}</td>
+        <td class="num ${r.septima ? 'pos' : 'muted'}"><span class="lbl">Séptima</span>${r.septima ? money(r.septima) : '—'}</td>
+        <td class="num ${r.gastos ? 'neg' : 'muted'}"><span class="lbl">Gastos</span>${r.gastos ? money(r.gastos) : '—'}</td>
+        <td class="num"><span class="lbl">Total</span><b>${money(r.total)}</b></td>
+        <td class="cell-wide"><span class="lbl">Comentarios</span>${comentarioGastos(r)}</td>
         ${withActions ? `<td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-mov="${r.id}">✏️</button>
           <button class="icon-btn" data-del-mov="${r.id}">🗑️</button>
@@ -393,8 +393,8 @@ function viewReserva(root) {
     <div class="card-body">${r.length ? `<table class="tbl">
       <thead><tr><th>Mes</th><th class="num">Monto</th><th></th></tr></thead>
       <tbody>${r.map((x) => `<tr>
-        <td data-label="Mes">${esc(x.mes ? mesLabel(x.mes) : '—')}</td>
-        <td data-label="Monto" class="num"><b>${money(x.monto)}</b></td>
+        <td><span class="lbl">Mes</span>${esc(x.mes ? mesLabel(x.mes) : '—')}</td>
+        <td class="num"><span class="lbl">Monto</span><b>${money(x.monto)}</b></td>
         <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-res="${x.id}">✏️</button>
           <button class="icon-btn" data-del-res="${x.id}">🗑️</button>
@@ -424,10 +424,10 @@ function viewPromejora(root) {
     <div class="card-body">${movs.length ? `<table class="tbl">
       <thead><tr><th>Fecha</th><th class="num">Ingreso</th><th class="num">Gasto</th><th>Concepto</th><th></th></tr></thead>
       <tbody>${movs.slice().reverse().map((x) => `<tr>
-        <td data-label="Fecha">${esc(fechaLabel(x.fecha))}</td>
-        <td data-label="Ingreso" class="num ${x.ingreso ? 'pos' : 'muted'}">${x.ingreso ? money(x.ingreso) : '—'}</td>
-        <td data-label="Gasto" class="num ${x.gasto ? 'neg' : 'muted'}">${x.gasto ? money(x.gasto) : '—'}</td>
-        <td data-label="Concepto" class="cell-wide">${comentarioGastos(x)}</td>
+        <td><span class="lbl">Fecha</span>${esc(fechaLabel(x.fecha))}</td>
+        <td class="num ${x.ingreso ? 'pos' : 'muted'}"><span class="lbl">Ingreso</span>${x.ingreso ? money(x.ingreso) : '—'}</td>
+        <td class="num ${x.gasto ? 'neg' : 'muted'}"><span class="lbl">Gasto</span>${x.gasto ? money(x.gasto) : '—'}</td>
+        <td class="cell-wide"><span class="lbl">Concepto</span>${comentarioGastos(x)}</td>
         <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-pro="${x.id}">✏️</button>
           <button class="icon-btn" data-del-pro="${x.id}">🗑️</button>
@@ -453,8 +453,8 @@ function viewClima(root) {
     <div class="card-body">${c.length ? `<table class="tbl">
       <thead><tr><th>Nombre</th><th class="num">Monto</th><th></th></tr></thead>
       <tbody>${c.map((x) => `<tr>
-        <td data-label="Nombre">${esc(x.nombre)}</td>
-        <td data-label="Monto" class="num"><b>${money(x.monto)}</b></td>
+        <td><span class="lbl">Nombre</span>${esc(x.nombre)}</td>
+        <td class="num"><span class="lbl">Monto</span><b>${money(x.monto)}</b></td>
         <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-cli="${x.id}">✏️</button>
           <button class="icon-btn" data-del-cli="${x.id}">🗑️</button>
