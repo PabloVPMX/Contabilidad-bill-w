@@ -7,7 +7,7 @@ Aplicación web de contabilidad para **Grupo Bill W**. Sin usuarios ni contrase�
 
 - **Panel lateral izquierdo** con navegación entre vistas.
 - **Resumen general (ejecutivo):** saldo actual, total séptimas, total gastos, reserva, clima, promejora.
-- **Resúmenes por mes (ejecutivos):** ingresos, gastos, neto y saldo de fin de mes; con detalle desplegable.
+- **Resúmenes por mes (ejecutivos):** ingresos, gastos y saldo de fin de mes; con detalle desplegable.
 - **Movimientos:** fecha, séptima (ingreso), gastos y comentarios del concepto. El **saldo corrido se calcula solo**.
 - **Reserva:** fondo que se desprende del saldo final de cada mes.
 - **Aportación clima:** fondo **independiente** del saldo general, solo con *monto* y *nombre*.

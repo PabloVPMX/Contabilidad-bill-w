@@ -250,7 +250,6 @@ function computeState() {
     g.saldoFinalMes = r.total;
   }
   const meses = [...mesesMap.values()]
-    .map((g) => ({ ...g, neto: g.ingresos - g.gastos }))
     .sort((a, b) => a.mes.localeCompare(b.mes));
 
   const totalClima = DB.clima.reduce((a, c) => a + num(c.monto), 0);

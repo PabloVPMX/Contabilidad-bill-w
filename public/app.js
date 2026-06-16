@@ -123,7 +123,6 @@ function viewGeneral(root) {
   const totalGastos = yearRows.reduce((a, x) => a + x.gastos, 0);
   const saldoInicial = yearRows.length ? yearRows[0].saldoAnterior : STATE.resumen.saldoActual;
   const saldoFinal = yearRows.length ? yearRows[yearRows.length - 1].total : saldoInicial;
-  const neto = totalSeptimas - totalGastos;
 
   // Fondos del año
   const totalReserva = STATE.reserva
@@ -160,7 +159,6 @@ function viewGeneral(root) {
     <div class="kpi">
       <div class="label">Gastos del año</div>
       <div class="value neg">${money(totalGastos)}</div>
-      <div class="sub">Neto ${money(neto)}</div>
     </div>
     <div class="kpi">
       <div class="label">Reserva del año</div>
@@ -527,7 +525,6 @@ function exportMonthlyPdf(mes) {
       <tr><td>Saldo inicial del mes</td><td class="num">${money(m.saldoInicialMes)}</td></tr>
       <tr><td>Ingresos del mes (séptimas)</td><td class="num pos">${money(m.ingresos)}</td></tr>
       <tr><td>Gastos del mes</td><td class="num neg">${money(m.gastos)}</td></tr>
-      <tr><td>Neto del mes</td><td class="num">${money(m.neto)}</td></tr>
       <tr class="total-row"><td>Saldo final del mes</td><td class="num">${money(m.saldoFinalMes)}</td></tr>
     </tbody></table>
 
