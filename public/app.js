@@ -179,27 +179,6 @@ function viewGeneral(root) {
     </div>`;
   root.appendChild(kpis);
 
-  // Resumen ejecutivo del año
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerHTML = `
-    <div class="card-head"><h2>Resumen ejecutivo · ${GEN_YEAR}</h2></div>
-    <div class="card-body">
-      <table>
-        <tbody>
-          <tr><td>Saldo inicial del año</td><td class="num">${money(saldoInicial)}</td></tr>
-          <tr><td>Séptimas del año (ingresos)</td><td class="num pos">${money(totalSeptimas)}</td></tr>
-          <tr><td><b>Total ingresos</b> (saldo inicial + séptimas)</td><td class="num"><b>${money(saldoInicial + totalSeptimas)}</b></td></tr>
-          <tr><td>Gastos del año</td><td class="num neg">${money(totalGastos)}</td></tr>
-          <tr><td><b>Saldo al cierre del año</b></td><td class="num"><b>${money(saldoFinal)}</b></td></tr>
-          <tr><td>Reserva del año</td><td class="num">${money(totalReserva)}</td></tr>
-          <tr><td>Aportación clima (acumulado)</td><td class="num">${money(totalClima)}</td></tr>
-          <tr><td>Promejora del año</td><td class="num">${money(promejora)}</td></tr>
-        </tbody>
-      </table>
-    </div>`;
-  root.appendChild(card);
-
   // Gráfico mensual del año
   root.appendChild(monthlyBars(STATE.meses.filter((m) => (m.mes || '').startsWith(GEN_YEAR))));
 
@@ -277,7 +256,9 @@ function viewMeses(root) {
 
   const years = aniosDe(meses.map((m) => m.mes));
   if (MES_YEAR !== 'all' && !years.includes(MES_YEAR)) MES_YEAR = 'all';
-  const filtered = meses.filter((m) => pasaFiltro(m.mes, MES_YEAR, MES_MONTH));
+  const filtered = meses
+    .filter((m) => pasaFiltro(m.mes, MES_YEAR, MES_MONTH))
+    .sort((a, b) => (b.mes || '').localeCompare(a.mes || ''));
 
   root.appendChild(elFromHtml(yearMonthFilterHtml('mes', years, MES_YEAR, MES_MONTH)));
 
@@ -290,7 +271,7 @@ function viewMeses(root) {
         <thead><tr>
           <th>Mes</th><th class="num">Movs.</th>
           <th class="num">Ingresos</th><th class="num">Gastos</th>
-          <th class="num">Neto</th><th class="num">Saldo fin de mes</th><th></th>
+          <th class="num">Saldo fin de mes</th><th></th>
         </tr></thead>
         <tbody>
           ${filtered.map((m) => `<tr>
@@ -298,7 +279,6 @@ function viewMeses(root) {
             <td class="num"><span class="lbl">Movs.</span>${m.movimientos}</td>
             <td class="num pos"><span class="lbl">Ingresos</span>${money(m.ingresos)}</td>
             <td class="num neg"><span class="lbl">Gastos</span>${money(m.gastos)}</td>
-            <td class="num ${m.neto >= 0 ? 'pos' : 'neg'}"><span class="lbl">Neto</span>${money(m.neto)}</td>
             <td class="num"><span class="lbl">Saldo fin de mes</span><b>${money(m.saldoFinalMes)}</b></td>
             <td class="cell-actions"><button class="btn" data-pdf="${m.mes}">📄 PDF</button></td>
           </tr>`).join('')}
