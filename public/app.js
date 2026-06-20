@@ -818,7 +818,7 @@ function openPromejoraModal(p) {
 
   const fields =
     field('Fecha', 'fecha', 'date', p?.fecha || today, 'required') +
-    field('Ingreso', 'ingreso', 'number', p?.ingreso ?? 0, 'step="0.01" min="0"') +
+    field('Ingreso', 'ingreso', 'number', p?.ingreso ?? '', 'step="0.01" min="0" placeholder="0.00"') +
     gastosFieldHtml(items, 'Gastos (concepto y monto)');
 
   openModal(isEdit ? 'Editar movimiento de promejora' : 'Nuevo movimiento de promejora', fields,
