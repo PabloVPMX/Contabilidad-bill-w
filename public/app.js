@@ -496,7 +496,10 @@ function exportMonthlyPdf(mes) {
     : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos en el mes.</td></tr>';
 
   // Anotaciones del mes (campo opcional capturado en cada movimiento).
-  const notas = rows.filter((r) => (r.comentario || '').trim() !== '');
+  // En registros antiguos sin gastosItems, el comentario se usa como concepto
+  // del gasto y ya sale en el desglose: en ese caso no es una anotación aparte.
+  const comentarioEsGasto = (r) => !(Array.isArray(r.gastosItems) && r.gastosItems.length) && r.gastos > 0;
+  const notas = rows.filter((r) => (r.comentario || '').trim() !== '' && !comentarioEsGasto(r));
   const seccionNotas = notas.length
     ? `<h2>Anotaciones del mes</h2>
     <table><thead><tr><th>Fecha</th><th>Anotación</th></tr></thead><tbody>
