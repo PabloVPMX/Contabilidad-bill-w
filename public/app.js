@@ -24,6 +24,10 @@ const todayLocal = () => {
   return new Date(d - off).toISOString().slice(0, 10);
 };
 
+// Suma de los egresos (gastosItems) de un registro de clima/reserva/etc.
+const egresosTotal = (rec) => Array.isArray(rec.gastosItems)
+  ? rec.gastosItems.reduce((a, it) => a + (Number(it.monto) || 0), 0) : 0;
+
 const money = (n) => '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -368,15 +372,17 @@ function viewReserva(root) {
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><h2>Registros de reserva</h2></div>
     <div class="card-body">${r.length ? `<table class="tbl">
-      <thead><tr><th>Mes</th><th class="num">Monto</th><th></th></tr></thead>
-      <tbody>${r.map((x) => `<tr>
+      <thead><tr><th>Mes</th><th class="num">Reserva</th><th class="num">Egresos</th><th>Detalle</th><th></th></tr></thead>
+      <tbody>${r.map((x) => { const eg = egresosTotal(x); return `<tr>
         <td><span class="lbl">Mes</span>${esc(x.mes ? mesLabel(x.mes) : '—')}</td>
-        <td class="num"><span class="lbl">Monto</span><b>${money(x.monto)}</b></td>
+        <td class="num ${x.monto ? 'pos' : 'muted'}"><span class="lbl">Reserva</span>${x.monto ? money(x.monto) : '—'}</td>
+        <td class="num ${eg ? 'neg' : 'muted'}"><span class="lbl">Egresos</span>${eg ? money(eg) : '—'}</td>
+        <td class="cell-wide"><span class="lbl">Detalle</span>${comentarioGastos(x)}</td>
         <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-res="${x.id}">✏️</button>
           <button class="icon-btn" data-del-res="${x.id}">🗑️</button>
         </div></td>
-      </tr>`).join('')}</tbody></table>` : '<div class="empty">Sin registros de reserva.</div>'}</div>`;
+      </tr>`; }).join('')}</tbody></table>` : '<div class="empty">Sin registros de reserva.</div>'}</div>`;
   root.appendChild(card);
 }
 
@@ -428,15 +434,17 @@ function viewClima(root) {
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><h2>Aportaciones</h2></div>
     <div class="card-body">${c.length ? `<table class="tbl">
-      <thead><tr><th>Nombre</th><th class="num">Monto</th><th></th></tr></thead>
-      <tbody>${c.map((x) => `<tr>
+      <thead><tr><th>Nombre</th><th class="num">Aportación</th><th class="num">Egresos</th><th>Detalle</th><th></th></tr></thead>
+      <tbody>${c.map((x) => { const eg = egresosTotal(x); return `<tr>
         <td><span class="lbl">Nombre</span>${esc(x.nombre)}</td>
-        <td class="num"><span class="lbl">Monto</span><b>${money(x.monto)}</b></td>
+        <td class="num ${x.monto ? 'pos' : 'muted'}"><span class="lbl">Aportación</span>${x.monto ? money(x.monto) : '—'}</td>
+        <td class="num ${eg ? 'neg' : 'muted'}"><span class="lbl">Egresos</span>${eg ? money(eg) : '—'}</td>
+        <td class="cell-wide"><span class="lbl">Detalle</span>${comentarioGastos(x)}</td>
         <td class="cell-actions"><div class="row-actions">
           <button class="icon-btn" data-edit-cli="${x.id}">✏️</button>
           <button class="icon-btn" data-del-cli="${x.id}">🗑️</button>
         </div></td>
-      </tr>`).join('')}</tbody></table>` : '<div class="empty">Sin aportaciones registradas.</div>'}</div>`;
+      </tr>`; }).join('')}</tbody></table>` : '<div class="empty">Sin aportaciones registradas.</div>'}</div>`;
   root.appendChild(card);
 }
 
@@ -472,9 +480,41 @@ function exportMonthlyPdf(mes) {
     : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos de promejora en el mes.</td></tr>';
 
   const reservaMes = STATE.reserva.filter((r) => r.mes === mes);
-  const totalReservaMes = reservaMes.reduce((a, r) => a + (Number(r.monto) || 0), 0);
-  const totalReserva = STATE.resumen.totalReserva;
+  const reservaAportadaMes = reservaMes.reduce((a, r) => a + (Number(r.monto) || 0), 0);
+  const reservaEgresosMes = reservaMes.reduce((a, r) => a + egresosTotal(r), 0);
+  const totalReservaMes = reservaAportadaMes - reservaEgresosMes;
+  // Saldo anterior: reserva neta (aportaciones - egresos) de los meses previos.
+  const reservaAnterior = STATE.reserva
+    .filter((r) => (r.mes || '') < mes)
+    .reduce((a, r) => a + (Number(r.monto) || 0) - egresosTotal(r), 0);
+  const totalReserva = reservaAnterior + totalReservaMes;
+
+  // Desglose de egresos de reserva del mes (solo si hay).
+  const reservaEgresoLineas = [];
+  for (const r of reservaMes) {
+    if (Array.isArray(r.gastosItems)) {
+      for (const it of r.gastosItems) {
+        reservaEgresoLineas.push({ concepto: it.concepto || 'Egreso de reserva', monto: Number(it.monto) || 0 });
+      }
+    }
+  }
+  const reservaDesglose = reservaEgresoLineas.length
+    ? `<table style="margin-top:10px"><thead><tr><th>Concepto (egreso de reserva)</th><th class="num">Monto</th></tr></thead><tbody>
+        ${reservaEgresoLineas.map((g) => `<tr><td>${esc(g.concepto)}</td><td class="num neg">${money(g.monto)}</td></tr>`).join('')}
+        <tr class="total-row"><td>Total egresos de reserva</td><td class="num neg">${money(reservaEgresosMes)}</td></tr>
+      </tbody></table>`
+    : '';
+
   const totalClima = STATE.resumen.totalClima;
+
+  // Renglones de clima: aportaciones y, debajo de cada una, sus egresos.
+  const climaLineas = STATE.clima.map((c) => {
+    const aport = `<tr><td>${esc(c.nombre)}</td><td class="num pos">${c.monto ? money(c.monto) : '—'}</td><td class="num">—</td></tr>`;
+    const egresos = (Array.isArray(c.gastosItems) ? c.gastosItems : []).map((it) =>
+      `<tr><td style="padding-left:24px;color:#555">${esc(it.concepto || 'Egreso clima')}</td><td class="num">—</td><td class="num neg">${money(it.monto)}</td></tr>`
+    ).join('');
+    return aport + egresos;
+  }).join('');
 
   // Cada concepto de gasto se lista como un renglón independiente.
   const gastoLineas = [];
@@ -577,14 +617,17 @@ function exportMonthlyPdf(mes) {
     </tbody></table>
 
     <h2>Reserva</h2>
-    <table><tbody>
-      <tr><td>Reserva tomada en el mes</td><td class="num">${money(totalReservaMes)}</td></tr>
+    <table class="resumen"><tbody>
+      <tr><td>Saldo anterior (meses anteriores)</td><td class="num">${money(reservaAnterior)}</td></tr>
+      <tr><td>Reserva aportada en el mes</td><td class="num pos">${money(reservaAportadaMes)}</td></tr>
+      ${reservaEgresosMes ? `<tr><td>Egresos de reserva en el mes</td><td class="num neg">${money(reservaEgresosMes)}</td></tr>` : ''}
       <tr class="total-row"><td>Reserva acumulada (total)</td><td class="num">${money(totalReserva)}</td></tr>
     </tbody></table>
+    ${reservaDesglose}
 
     <h2>Aportación clima <span style="font-weight:400;font-size:11px;color:#777">(fondo independiente del saldo general)</span></h2>
-    <table><thead><tr><th>Nombre</th><th class="num">Monto</th></tr></thead><tbody>
-      ${STATE.clima.length ? STATE.clima.map((c) => `<tr><td>${esc(c.nombre)}</td><td class="num">${money(c.monto)}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center;color:#666">Sin aportaciones registradas.</td></tr>'}
+    <table><thead><tr><th>Concepto</th><th class="num">Aportación</th><th class="num">Egreso</th></tr></thead><tbody>
+      ${climaLineas || '<tr><td colspan="3" style="text-align:center;color:#666">Sin movimientos de clima registrados.</td></tr>'}
       <tr class="total-row"><td>Saldo del clima</td><td class="num">${money(totalClima)}</td></tr>
     </tbody></table>
 
@@ -732,12 +775,21 @@ function openMovModal(mov) {
 
 function openClimaModal(c) {
   const isEdit = !!c;
-  openModal(isEdit ? 'Editar aportación' : 'Nueva aportación clima',
-    field('Nombre', 'nombre', 'text', c?.nombre || '', 'required') +
-    field('Monto', 'monto', 'number', c?.monto ?? 0, 'step="0.01" min="0" required'),
-    (data) => isEdit
-      ? api('PUT', `/api/clima/${c.id}`, data)
-      : api('POST', '/api/clima', data));
+  const items = gastosPrecarga(c);
+  const fields =
+    field('Nombre / concepto', 'nombre', 'text', c?.nombre || '', 'required') +
+    field('Aportación (ingreso al fondo)', 'monto', 'number', c?.monto ?? '', 'step="0.01" min="0" placeholder="0.00"') +
+    gastosFieldHtml(items, 'Egresos del clima (concepto y monto)') +
+    textareaField('Anotación (opcional)', 'comentario', c?.comentario || '');
+
+  openModal(isEdit ? 'Editar aportación' : 'Nueva aportación clima', fields,
+    (data, form) => {
+      const payload = { nombre: data.nombre, monto: data.monto, comentario: (data.comentario || '').trim(), gastosItems: collectGastos(form) };
+      return isEdit
+        ? api('PUT', `/api/clima/${c.id}`, payload)
+        : api('POST', '/api/clima', payload);
+    },
+    wireGastos);
 }
 
 function openPromejoraModal(p) {
@@ -764,12 +816,21 @@ function openPromejoraModal(p) {
 function openReservaModal(r) {
   const isEdit = !!r;
   const ym = todayLocal().slice(0, 7);
-  openModal(isEdit ? 'Editar registro de reserva' : 'Nuevo registro de reserva',
+  const items = gastosPrecarga(r);
+  const fields =
     field('Mes', 'mes', 'month', r?.mes || ym) +
-    field('Monto', 'monto', 'number', r?.monto ?? 0, 'step="0.01" required'),
-    (data) => isEdit
-      ? api('PUT', `/api/reserva/${r.id}`, data)
-      : api('POST', '/api/reserva', data));
+    field('Reserva tomada (ingreso al fondo)', 'monto', 'number', r?.monto ?? '', 'step="0.01" placeholder="0.00"') +
+    gastosFieldHtml(items, 'Egresos de la reserva (concepto y monto)') +
+    textareaField('Anotación (opcional)', 'comentario', r?.comentario || '');
+
+  openModal(isEdit ? 'Editar registro de reserva' : 'Nuevo registro de reserva', fields,
+    (data, form) => {
+      const payload = { mes: data.mes, monto: data.monto, comentario: (data.comentario || '').trim(), gastosItems: collectGastos(form) };
+      return isEdit
+        ? api('PUT', `/api/reserva/${r.id}`, payload)
+        : api('POST', '/api/reserva', payload);
+    },
+    wireGastos);
 }
 
 // ---------------------------------------------------------------------------
