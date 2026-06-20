@@ -507,14 +507,27 @@ function exportMonthlyPdf(mes) {
 
   const totalClima = STATE.resumen.totalClima;
 
-  // Renglones de clima: aportaciones y, debajo de cada una, sus egresos.
-  const climaLineas = STATE.clima.map((c) => {
-    const aport = `<tr><td>${esc(c.nombre)}</td><td class="num pos">${c.monto ? money(c.monto) : '—'}</td><td class="num">—</td></tr>`;
-    const egresos = (Array.isArray(c.gastosItems) ? c.gastosItems : []).map((it) =>
-      `<tr><td style="padding-left:24px;color:#555">${esc(it.concepto || 'Egreso clima')}</td><td class="num">—</td><td class="num neg">${money(it.monto)}</td></tr>`
-    ).join('');
-    return aport + egresos;
-  }).join('');
+  // Clima (mismo esquema que reserva): aportaciones y egresos por separado.
+  const totalAportClima = STATE.clima.reduce((a, c) => a + (Number(c.monto) || 0), 0);
+  const climaAportLineas = STATE.clima
+    .filter((c) => (Number(c.monto) || 0) !== 0)
+    .map((c) => `<tr><td>${esc(c.nombre)}</td><td class="num pos">${money(c.monto)}</td></tr>`)
+    .join('');
+  const climaEgresoLineas = [];
+  for (const c of STATE.clima) {
+    if (Array.isArray(c.gastosItems)) {
+      for (const it of c.gastosItems) {
+        climaEgresoLineas.push({ concepto: it.concepto || 'Egreso de clima', monto: Number(it.monto) || 0 });
+      }
+    }
+  }
+  const climaEgresosTotal = climaEgresoLineas.reduce((a, g) => a + g.monto, 0);
+  const climaEgresoDesglose = climaEgresoLineas.length
+    ? `<table style="margin-top:10px"><thead><tr><th>Concepto (egreso de clima)</th><th class="num">Monto</th></tr></thead><tbody>
+        ${climaEgresoLineas.map((g) => `<tr><td>${esc(g.concepto)}</td><td class="num neg">${money(g.monto)}</td></tr>`).join('')}
+        <tr class="total-row"><td>Total egresos de clima</td><td class="num neg">${money(climaEgresosTotal)}</td></tr>
+      </tbody></table>`
+    : '';
 
   // Cada concepto de gasto se lista como un renglón independiente.
   const gastoLineas = [];
@@ -626,10 +639,15 @@ function exportMonthlyPdf(mes) {
     ${reservaDesglose}
 
     <h2>Aportación clima <span style="font-weight:400;font-size:11px;color:#777">(fondo independiente del saldo general)</span></h2>
-    <table><thead><tr><th>Concepto</th><th class="num">Aportación</th><th class="num">Egreso</th></tr></thead><tbody>
-      ${climaLineas || '<tr><td colspan="3" style="text-align:center;color:#666">Sin movimientos de clima registrados.</td></tr>'}
-      <tr class="total-row"><td>Saldo del clima</td><td class="num">${money(totalClima)}</td></tr>
+    <table class="resumen"><tbody>
+      <tr><td>Aportaciones del clima</td><td class="num pos">${money(totalAportClima)}</td></tr>
+      ${climaEgresosTotal ? `<tr><td>Egresos del clima</td><td class="num neg">${money(climaEgresosTotal)}</td></tr>` : ''}
+      <tr class="total-row"><td>Saldo del clima (acumulado)</td><td class="num">${money(totalClima)}</td></tr>
     </tbody></table>
+    <table style="margin-top:10px"><thead><tr><th>Aportación</th><th class="num">Monto</th></tr></thead><tbody>
+      ${climaAportLineas || '<tr><td colspan="2" style="text-align:center;color:#666">Sin aportaciones registradas.</td></tr>'}
+    </tbody></table>
+    ${climaEgresoDesglose}
 
     <div class="firma">
       <div class="line">
