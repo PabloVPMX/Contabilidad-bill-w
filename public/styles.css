@@ -166,6 +166,7 @@ input, select, textarea {
   width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
   font-size: 14px; font-family: inherit; background: var(--input); color: var(--ink);
 }
+textarea { resize: vertical; min-height: 44px; }
 input:focus, textarea:focus, select:focus { outline: 2px solid rgba(37,99,235,.5); border-color: var(--brand); }
 label.field, .field { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 14px; }
 label.field span, .field > span { display: block; margin-bottom: 6px; }
@@ -179,6 +180,8 @@ label.field span, .field > span { display: block; margin-bottom: 6px; }
 .gastos-desglose { font-size: 13px; font-weight: 400; }
 .g-line { display: flex; justify-content: space-between; gap: 12px; }
 .g-line b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nota-mov { margin-top: 4px; font-size: 12px; font-style: italic; color: var(--muted);
+  border-left: 2px solid var(--brand); padding-left: 6px; }
 
 /* ---------- Modal ---------- */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: grid; place-items: center; z-index: 50; }

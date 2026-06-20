@@ -1,7 +1,7 @@
 'use strict';
 
 let STATE = null;
-let VIEW = 'general';
+let VIEW = 'movimientos';
 let MOV_YEAR = 'all', MOV_MONTH = 'all'; // filtros de la vista Movimientos
 let MES_YEAR = 'all', MES_MONTH = 'all'; // filtros de la vista Resúmenes por mes
 
@@ -14,6 +14,14 @@ const elFromHtml = (html) => {
   const t = document.createElement('template');
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
+};
+
+// Fecha de hoy en horario local (YYYY-MM-DD). No usar toISOString(): convierte
+// a UTC y puede adelantar un día según la zona horaria.
+const todayLocal = () => {
+  const d = new Date();
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d - off).toISOString().slice(0, 10);
 };
 
 const money = (n) => '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -316,7 +324,7 @@ function comentarioGastos(r) {
       `<div class="g-line"><span>${esc(it.concepto) || '<span class="muted">Sin concepto</span>'}</span><b>${money(it.monto)}</b></div>`
     ).join(''));
   }
-  if (r.comentario) parts.push(`<div>${esc(r.comentario)}</div>`);
+  if (r.comentario) parts.push(`<div class="nota-mov">📝 ${esc(r.comentario)}</div>`);
   return parts.length ? `<div class="gastos-desglose">${parts.join('')}</div>` : '<span class="muted">—</span>';
 }
 
@@ -439,7 +447,7 @@ function exportMonthlyPdf(mes) {
   if (!m) return;
   const rows = STATE.rows.filter((r) => r.mes === mes);
   const ingresosRows = rows.filter((r) => r.septima > 0);
-  const hoy = fechaLabel(new Date().toISOString().slice(0, 10));
+  const hoy = fechaLabel(todayLocal());
 
   const proMes = STATE.promejora.filter((p) => p.mes === mes);
   const proIngresos = proMes.reduce((a, r) => a + (Number(r.ingreso) || 0), 0);
@@ -486,6 +494,18 @@ function exportMonthlyPdf(mes) {
         <td class="num">${money(g.monto)}</td>
       </tr>`).join('')
     : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos en el mes.</td></tr>';
+
+  // Anotaciones del mes (campo opcional capturado en cada movimiento).
+  const notas = rows.filter((r) => (r.comentario || '').trim() !== '');
+  const seccionNotas = notas.length
+    ? `<h2>Anotaciones del mes</h2>
+    <table><thead><tr><th>Fecha</th><th>Anotación</th></tr></thead><tbody>
+      ${notas.map((r) => `<tr>
+        <td style="white-space:nowrap">${esc(fechaLabel(r.fecha))}</td>
+        <td>${esc(r.comentario)}</td>
+      </tr>`).join('')}
+    </tbody></table>`
+    : '';
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
     <title>Reporte de Tesorería ${esc(mesLabel(mes))} - Grupo Bill W</title>
@@ -540,6 +560,8 @@ function exportMonthlyPdf(mes) {
       ${desgloseGastos}
       <tr class="total-row"><td colspan="2">Total gastos</td><td class="num neg">${money(m.gastos)}</td></tr>
     </tbody></table>
+
+    ${seccionNotas}
 
     <h2>Promejora <span style="font-weight:400;font-size:11px;color:#777">(fondo independiente del saldo general)</span></h2>
     <table class="resumen"><tbody>
@@ -614,6 +636,11 @@ function field(label, name, type, value, extra = '') {
     <input name="${name}" type="${type}" value="${value != null ? esc(value) : ''}" ${extra} /></label>`;
 }
 
+function textareaField(label, name, value, placeholder = '') {
+  return `<label class="field"><span>${label}</span>
+    <textarea name="${name}" rows="2" placeholder="${esc(placeholder)}">${value != null ? esc(value) : ''}</textarea></label>`;
+}
+
 function gastoRowHtml(concepto = '', monto = '') {
   const m = (monto !== '' && monto != null) ? esc(monto) : '';
   return `<div class="gasto-row">
@@ -680,18 +707,19 @@ function comentarioAConservar(rec, montoLegacy) {
 
 function openMovModal(mov) {
   const isEdit = !!mov;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const items = gastosPrecarga(mov, mov?.gastos);
   const keepComment = comentarioAConservar(mov, mov?.gastos);
 
   const fields =
     field('Fecha', 'fecha', 'date', mov?.fecha || today, 'required') +
-    field('Séptima (ingreso)', 'septima', 'number', mov?.septima ?? 0, 'step="0.01" min="0"') +
-    gastosFieldHtml(items, 'Gastos del día (concepto y monto)');
+    field('Séptima (ingreso)', 'septima', 'number', mov?.septima ?? '', 'step="0.01" min="0" placeholder="0.00"') +
+    gastosFieldHtml(items, 'Gastos del día (concepto y monto)') +
+    textareaField('Anotación (opcional)', 'comentario', keepComment, 'Aclaración importante del día (aparecerá en el reporte mensual)');
 
   openModal(isEdit ? 'Editar movimiento' : 'Nuevo movimiento', fields,
     (data, form) => {
-      const payload = { fecha: data.fecha, septima: data.septima, comentario: keepComment, gastosItems: collectGastos(form) };
+      const payload = { fecha: data.fecha, septima: data.septima, comentario: (data.comentario || '').trim(), gastosItems: collectGastos(form) };
       return isEdit
         ? api('PUT', `/api/movimientos/${mov.id}`, payload)
         : api('POST', '/api/movimientos', payload);
@@ -711,7 +739,7 @@ function openClimaModal(c) {
 
 function openPromejoraModal(p) {
   const isEdit = !!p;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const items = gastosPrecarga(p, p?.gasto);
   const keepComment = comentarioAConservar(p, p?.gasto);
 
@@ -732,7 +760,7 @@ function openPromejoraModal(p) {
 
 function openReservaModal(r) {
   const isEdit = !!r;
-  const ym = new Date().toISOString().slice(0, 7);
+  const ym = todayLocal().slice(0, 7);
   openModal(isEdit ? 'Editar registro de reserva' : 'Nuevo registro de reserva',
     field('Mes', 'mes', 'month', r?.mes || ym) +
     field('Monto', 'monto', 'number', r?.monto ?? 0, 'step="0.01" required'),

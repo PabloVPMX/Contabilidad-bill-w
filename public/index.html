@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Bill W" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <div class="app">
@@ -25,23 +25,23 @@
       </div>
 
       <nav class="nav">
-        <button class="nav-item active" data-view="general">
-          <span class="ico">📊</span> Resumen anual
-        </button>
-        <button class="nav-item" data-view="meses">
-          <span class="ico">🗓️</span> Resúmenes por mes
-        </button>
-        <button class="nav-item" data-view="movimientos">
+        <button class="nav-item active" data-view="movimientos">
           <span class="ico">💵</span> Movimientos
         </button>
         <button class="nav-item" data-view="reserva">
           <span class="ico">🏦</span> Reserva
         </button>
-        <button class="nav-item" data-view="promejora">
-          <span class="ico">🔧</span> Promejora
+        <button class="nav-item" data-view="meses">
+          <span class="ico">🗓️</span> Resúmenes por mes
         </button>
         <button class="nav-item" data-view="clima">
           <span class="ico">❄️</span> Aportación clima
+        </button>
+        <button class="nav-item" data-view="promejora">
+          <span class="ico">🔧</span> Promejora
+        </button>
+        <button class="nav-item" data-view="general">
+          <span class="ico">📊</span> Resumen anual
         </button>
       </nav>
 
@@ -63,7 +63,7 @@
     <main class="content">
       <header class="topbar">
         <button class="menu-toggle" id="menu-toggle" aria-label="Menú">☰</button>
-        <h1 id="view-title">Resumen general</h1>
+        <h1 id="view-title">Movimientos</h1>
         <div class="topbar-actions" id="topbar-actions"></div>
       </header>
       <section id="view-root" class="view-root"></section>
@@ -82,6 +82,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
