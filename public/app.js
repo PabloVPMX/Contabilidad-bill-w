@@ -499,7 +499,7 @@ function exportMonthlyPdf(mes) {
     }
   }
   const reservaDesglose = reservaEgresoLineas.length
-    ? `<table style="margin-top:10px"><thead><tr><th>Concepto (egreso de reserva)</th><th class="num">Monto</th></tr></thead><tbody>
+    ? `<table style="margin-top:10px"><thead><tr><th>Egresos reserva</th><th class="num">Monto</th></tr></thead><tbody>
         ${reservaEgresoLineas.map((g) => `<tr><td>${esc(g.concepto)}</td><td class="num neg">${money(g.monto)}</td></tr>`).join('')}
         <tr class="total-row"><td>Total egresos de reserva</td><td class="num neg">${money(reservaEgresosMes)}</td></tr>
       </tbody></table>`
@@ -523,7 +523,7 @@ function exportMonthlyPdf(mes) {
   }
   const climaEgresosTotal = climaEgresoLineas.reduce((a, g) => a + g.monto, 0);
   const climaEgresoDesglose = climaEgresoLineas.length
-    ? `<table style="margin-top:10px"><thead><tr><th>Concepto (egreso de clima)</th><th class="num">Monto</th></tr></thead><tbody>
+    ? `<table style="margin-top:10px"><thead><tr><th>Egresos clima</th><th class="num">Monto</th></tr></thead><tbody>
         ${climaEgresoLineas.map((g) => `<tr><td>${esc(g.concepto)}</td><td class="num neg">${money(g.monto)}</td></tr>`).join('')}
         <tr class="total-row"><td>Total egresos de clima</td><td class="num neg">${money(climaEgresosTotal)}</td></tr>
       </tbody></table>`
