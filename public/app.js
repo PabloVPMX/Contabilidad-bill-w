@@ -24,7 +24,7 @@ const todayLocal = () => {
   return new Date(d - off).toISOString().slice(0, 10);
 };
 
-// Suma de los egresos (gastosItems) de un registro de clima/reserva/etc.
+// Suma de los egresos (gastosItems) de un registro de reserva/etc.
 const egresosTotal = (rec) => Array.isArray(rec.gastosItems)
   ? rec.gastosItems.reduce((a, it) => a + (Number(it.monto) || 0), 0) : 0;
 
@@ -72,9 +72,7 @@ const TITLES = {
   general: 'Resumen anual',
   meses: 'Resúmenes por mes',
   movimientos: 'Movimientos',
-  reserva: 'Reserva',
-  promejora: 'Promejora',
-  clima: 'Aportación clima'
+  reserva: 'Reserva'
 };
 
 function render() {
@@ -82,15 +80,12 @@ function render() {
   const r = STATE.resumen;
   $('#ss-saldo').textContent = money(r.saldoActual);
   $('#ss-reserva').textContent = money(r.totalReserva);
-  $('#ss-clima').textContent = money(r.totalClima);
   $('#view-title').textContent = TITLES[VIEW];
 
   const actions = $('#topbar-actions');
   actions.innerHTML = '';
   if (VIEW === 'movimientos') actions.appendChild(btn('+ Nuevo movimiento', 'primary', () => openMovModal()));
-  if (VIEW === 'clima') actions.appendChild(btn('+ Nueva aportación', 'primary', () => openClimaModal()));
   if (VIEW === 'reserva') actions.appendChild(btn('+ Nuevo registro', 'primary', () => openReservaModal()));
-  if (VIEW === 'promejora') actions.appendChild(btn('+ Nuevo movimiento', 'primary', () => openPromejoraModal()));
 
   const root = $('#view-root');
   root.innerHTML = '';
@@ -98,9 +93,7 @@ function render() {
     general: viewGeneral,
     meses: viewMeses,
     movimientos: viewMovimientos,
-    reserva: viewReserva,
-    promejora: viewPromejora,
-    clima: viewClima
+    reserva: viewReserva
   })[VIEW](root);
 }
 
@@ -120,7 +113,6 @@ function aniosDisponibles() {
   const set = new Set();
   STATE.rows.forEach((r) => { if (r.fecha) set.add(r.fecha.slice(0, 4)); });
   STATE.reserva.forEach((r) => { if (r.mes) set.add(r.mes.slice(0, 4)); });
-  STATE.promejora.forEach((p) => { if (p.fecha) set.add(p.fecha.slice(0, 4)); });
   if (!set.size) set.add(String(new Date().getFullYear()));
   return [...set].sort();
 }
@@ -140,9 +132,6 @@ function viewGeneral(root) {
   const totalReserva = STATE.reserva
     .filter((x) => (x.mes || '').startsWith(GEN_YEAR))
     .reduce((a, x) => a + (Number(x.monto) || 0), 0);
-  const proRows = STATE.promejora.filter((p) => (p.fecha || '').startsWith(GEN_YEAR));
-  const promejora = proRows.reduce((a, p) => a + (Number(p.ingreso) || 0) - (Number(p.gasto) || 0), 0);
-  const totalClima = STATE.resumen.totalClima; // sin fecha: se muestra el acumulado
 
   // Selector de año
   const bar = document.createElement('div');
@@ -176,16 +165,6 @@ function viewGeneral(root) {
       <div class="label">Reserva del año</div>
       <div class="value">${money(totalReserva)}</div>
       <div class="sub">Fondo del saldo final mensual</div>
-    </div>
-    <div class="kpi">
-      <div class="label">Aportación clima</div>
-      <div class="value">${money(totalClima)}</div>
-      <div class="sub">Acumulado (sin fecha)</div>
-    </div>
-    <div class="kpi">
-      <div class="label">Promejora del año</div>
-      <div class="value">${money(promejora)}</div>
-      <div class="sub">Fondo complementario</div>
     </div>`;
   root.appendChild(kpis);
 
@@ -387,68 +366,6 @@ function viewReserva(root) {
 }
 
 // ---------------------------------------------------------------------------
-// Vista: Promejora (saldo independiente con ingresos y gastos)
-function viewPromejora(root) {
-  const r = STATE.resumen;
-  const movs = STATE.promejora;
-
-  const kpis = document.createElement('div');
-  kpis.className = 'kpis';
-  kpis.innerHTML = `
-    <div class="kpi accent"><div class="label">Saldo promejora</div><div class="value">${money(r.promejora)}</div>
-      <div class="sub">Fondo independiente del saldo general</div></div>
-    <div class="kpi"><div class="label">Ingresos promejora</div><div class="value pos">${money(r.promejoraIngresos)}</div></div>
-    <div class="kpi"><div class="label">Gastos promejora</div><div class="value neg">${money(r.promejoraGastos)}</div></div>`;
-  root.appendChild(kpis);
-
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerHTML = `<div class="card-head"><h2>Movimientos de promejora</h2></div>
-    <div class="card-body">${movs.length ? `<table class="tbl">
-      <thead><tr><th>Fecha</th><th class="num">Ingreso</th><th class="num">Gasto</th><th>Concepto</th><th></th></tr></thead>
-      <tbody>${movs.slice().reverse().map((x) => `<tr>
-        <td><span class="lbl">Fecha</span>${esc(fechaLabel(x.fecha))}</td>
-        <td class="num ${x.ingreso ? 'pos' : 'muted'}"><span class="lbl">Ingreso</span>${x.ingreso ? money(x.ingreso) : '—'}</td>
-        <td class="num ${x.gasto ? 'neg' : 'muted'}"><span class="lbl">Gasto</span>${x.gasto ? money(x.gasto) : '—'}</td>
-        <td class="cell-wide"><span class="lbl">Concepto</span>${comentarioGastos(x)}</td>
-        <td class="cell-actions"><div class="row-actions">
-          <button class="icon-btn" data-edit-pro="${x.id}">✏️</button>
-          <button class="icon-btn" data-del-pro="${x.id}">🗑️</button>
-        </div></td>
-      </tr>`).join('')}</tbody></table>` : '<div class="empty">Sin movimientos de promejora. Usa “+ Nuevo movimiento” para registrar ingresos o gastos.</div>'}</div>`;
-  root.appendChild(card);
-}
-
-// ---------------------------------------------------------------------------
-// Vista: Aportación clima
-function viewClima(root) {
-  const c = STATE.clima;
-  const total = STATE.resumen.totalClima;
-  const kpi = document.createElement('div');
-  kpi.className = 'kpis';
-  kpi.innerHTML = `<div class="kpi accent"><div class="label">Total aportación clima</div><div class="value">${money(total)}</div>
-    <div class="sub">Fondo independiente del saldo general · ${c.length} aportaciones</div></div>`;
-  root.appendChild(kpi);
-
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerHTML = `<div class="card-head"><h2>Aportaciones</h2></div>
-    <div class="card-body">${c.length ? `<table class="tbl">
-      <thead><tr><th>Nombre</th><th class="num">Aportación</th><th class="num">Egresos</th><th>Detalle</th><th></th></tr></thead>
-      <tbody>${c.map((x) => { const eg = egresosTotal(x); return `<tr>
-        <td><span class="lbl">Nombre</span>${esc(x.nombre)}</td>
-        <td class="num ${x.monto ? 'pos' : 'muted'}"><span class="lbl">Aportación</span>${x.monto ? money(x.monto) : '—'}</td>
-        <td class="num ${eg ? 'neg' : 'muted'}"><span class="lbl">Egresos</span>${eg ? money(eg) : '—'}</td>
-        <td class="cell-wide"><span class="lbl">Detalle</span>${comentarioGastos(x)}</td>
-        <td class="cell-actions"><div class="row-actions">
-          <button class="icon-btn" data-edit-cli="${x.id}">✏️</button>
-          <button class="icon-btn" data-del-cli="${x.id}">🗑️</button>
-        </div></td>
-      </tr>`; }).join('')}</tbody></table>` : '<div class="empty">Sin aportaciones registradas.</div>'}</div>`;
-  root.appendChild(card);
-}
-
-// ---------------------------------------------------------------------------
 // Exportar reporte de tesorería mensual a PDF (vía impresión del navegador)
 function exportMonthlyPdf(mes) {
   const m = STATE.meses.find((x) => x.mes === mes);
@@ -456,28 +373,6 @@ function exportMonthlyPdf(mes) {
   const rows = STATE.rows.filter((r) => r.mes === mes);
   const ingresosRows = rows.filter((r) => r.septima > 0);
   const hoy = fechaLabel(todayLocal());
-
-  const proMes = STATE.promejora.filter((p) => p.mes === mes);
-  const proIngresos = proMes.reduce((a, r) => a + (Number(r.ingreso) || 0), 0);
-  const proGastosTotal = proMes.reduce((a, r) => a + (Number(r.gasto) || 0), 0);
-  // Cada concepto de gasto de promejora se lista como un renglón independiente.
-  const proGastoLineas = [];
-  for (const r of proMes) {
-    if (Array.isArray(r.gastosItems) && r.gastosItems.length) {
-      for (const it of r.gastosItems) {
-        proGastoLineas.push({ fecha: r.fecha, concepto: it.concepto || 'Sin concepto especificado', monto: Number(it.monto) || 0 });
-      }
-    } else if (r.gasto > 0) {
-      proGastoLineas.push({ fecha: r.fecha, concepto: r.comentario || 'Sin concepto especificado', monto: r.gasto });
-    }
-  }
-  const desglosePromejora = proGastoLineas.length
-    ? proGastoLineas.map((g) => `<tr>
-        <td>${esc(fechaLabel(g.fecha))}</td>
-        <td>${esc(g.concepto)}</td>
-        <td class="num">${money(g.monto)}</td>
-      </tr>`).join('')
-    : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos de promejora en el mes.</td></tr>';
 
   const reservaMes = STATE.reserva.filter((r) => r.mes === mes);
   const reservaAportadaMes = reservaMes.reduce((a, r) => a + (Number(r.monto) || 0), 0);
@@ -502,30 +397,6 @@ function exportMonthlyPdf(mes) {
     ? `<table style="margin-top:10px"><thead><tr><th>Egresos reserva</th><th class="num">Monto</th></tr></thead><tbody>
         ${reservaEgresoLineas.map((g) => `<tr><td>${esc(g.concepto)}</td><td class="num neg">${money(g.monto)}</td></tr>`).join('')}
         <tr class="total-row"><td>Total egresos de reserva</td><td class="num neg">${money(reservaEgresosMes)}</td></tr>
-      </tbody></table>`
-    : '';
-
-  const totalClima = STATE.resumen.totalClima;
-
-  // Clima (mismo esquema que reserva): aportaciones y egresos por separado.
-  const totalAportClima = STATE.clima.reduce((a, c) => a + (Number(c.monto) || 0), 0);
-  const climaAportLineas = STATE.clima
-    .filter((c) => (Number(c.monto) || 0) !== 0)
-    .map((c) => `<tr><td>${esc(c.nombre)}</td><td class="num pos">${money(c.monto)}</td></tr>`)
-    .join('');
-  const climaEgresoLineas = [];
-  for (const c of STATE.clima) {
-    if (Array.isArray(c.gastosItems)) {
-      for (const it of c.gastosItems) {
-        climaEgresoLineas.push({ concepto: it.concepto || 'Egreso de clima', monto: Number(it.monto) || 0 });
-      }
-    }
-  }
-  const climaEgresosTotal = climaEgresoLineas.reduce((a, g) => a + g.monto, 0);
-  const climaEgresoDesglose = climaEgresoLineas.length
-    ? `<table style="margin-top:10px"><thead><tr><th>Egresos clima</th><th class="num">Monto</th></tr></thead><tbody>
-        ${climaEgresoLineas.map((g) => `<tr><td>${esc(g.concepto)}</td><td class="num neg">${money(g.monto)}</td></tr>`).join('')}
-        <tr class="total-row"><td>Total egresos de clima</td><td class="num neg">${money(climaEgresosTotal)}</td></tr>
       </tbody></table>`
     : '';
 
@@ -619,16 +490,6 @@ function exportMonthlyPdf(mes) {
 
     ${seccionNotas}
 
-    <h2>Promejora <span style="font-weight:400;font-size:11px;color:#777">(fondo independiente del saldo general)</span></h2>
-    <table class="resumen"><tbody>
-      <tr><td>Ingresos de promejora del mes</td><td class="num pos">${money(proIngresos)}</td></tr>
-      <tr class="total-row"><td>Saldo de promejora (acumulado)</td><td class="num">${money(STATE.resumen.promejora)}</td></tr>
-    </tbody></table>
-    <table style="margin-top:10px"><thead><tr><th>Fecha</th><th>Concepto (gasto promejora)</th><th class="num">Monto</th></tr></thead><tbody>
-      ${desglosePromejora}
-      <tr class="total-row"><td colspan="2">Total gastos promejora</td><td class="num neg">${money(proGastosTotal)}</td></tr>
-    </tbody></table>
-
     <h2>Reserva</h2>
     <table class="resumen"><tbody>
       <tr><td>Saldo anterior (meses anteriores)</td><td class="num">${money(reservaAnterior)}</td></tr>
@@ -637,17 +498,6 @@ function exportMonthlyPdf(mes) {
       <tr class="total-row"><td>Reserva acumulada (total)</td><td class="num">${money(totalReserva)}</td></tr>
     </tbody></table>
     ${reservaDesglose}
-
-    <h2>Aportación clima <span style="font-weight:400;font-size:11px;color:#777">(fondo independiente del saldo general)</span></h2>
-    <table class="resumen"><tbody>
-      <tr><td>Aportaciones del clima</td><td class="num pos">${money(totalAportClima)}</td></tr>
-      ${climaEgresosTotal ? `<tr><td>Egresos del clima</td><td class="num neg">${money(climaEgresosTotal)}</td></tr>` : ''}
-      <tr class="total-row"><td>Saldo del clima (acumulado)</td><td class="num">${money(totalClima)}</td></tr>
-    </tbody></table>
-    <table style="margin-top:10px"><thead><tr><th>Aportación</th><th class="num">Monto</th></tr></thead><tbody>
-      ${climaAportLineas || '<tr><td colspan="2" style="text-align:center;color:#666">Sin aportaciones registradas.</td></tr>'}
-    </tbody></table>
-    ${climaEgresoDesglose}
 
     <div class="firma">
       <div class="line">
@@ -791,46 +641,6 @@ function openMovModal(mov) {
     wireGastos);
 }
 
-function openClimaModal(c) {
-  const isEdit = !!c;
-  const items = gastosPrecarga(c);
-  const fields =
-    field('Nombre / concepto', 'nombre', 'text', c?.nombre || '', 'required') +
-    field('Aportación (ingreso al fondo)', 'monto', 'number', c?.monto ?? '', 'step="0.01" min="0" placeholder="0.00"') +
-    gastosFieldHtml(items, 'Egresos del clima (concepto y monto)') +
-    textareaField('Anotación (opcional)', 'comentario', c?.comentario || '');
-
-  openModal(isEdit ? 'Editar aportación' : 'Nueva aportación clima', fields,
-    (data, form) => {
-      const payload = { nombre: data.nombre, monto: data.monto, comentario: (data.comentario || '').trim(), gastosItems: collectGastos(form) };
-      return isEdit
-        ? api('PUT', `/api/clima/${c.id}`, payload)
-        : api('POST', '/api/clima', payload);
-    },
-    wireGastos);
-}
-
-function openPromejoraModal(p) {
-  const isEdit = !!p;
-  const today = todayLocal();
-  const items = gastosPrecarga(p, p?.gasto);
-  const keepComment = comentarioAConservar(p, p?.gasto);
-
-  const fields =
-    field('Fecha', 'fecha', 'date', p?.fecha || today, 'required') +
-    field('Ingreso', 'ingreso', 'number', p?.ingreso ?? '', 'step="0.01" min="0" placeholder="0.00"') +
-    gastosFieldHtml(items, 'Gastos (concepto y monto)');
-
-  openModal(isEdit ? 'Editar movimiento de promejora' : 'Nuevo movimiento de promejora', fields,
-    (data, form) => {
-      const payload = { fecha: data.fecha, ingreso: data.ingreso, comentario: keepComment, gastosItems: collectGastos(form) };
-      return isEdit
-        ? api('PUT', `/api/promejora/${p.id}`, payload)
-        : api('POST', '/api/promejora', payload);
-    },
-    wireGastos);
-}
-
 function openReservaModal(r) {
   const isEdit = !!r;
   const ym = todayLocal().slice(0, 7);
@@ -854,7 +664,7 @@ function openReservaModal(r) {
 // ---------------------------------------------------------------------------
 // Delegación de eventos
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-view],[data-pdf],[data-edit-mov],[data-del-mov],[data-edit-cli],[data-del-cli],[data-edit-res],[data-del-res],[data-edit-pro],[data-del-pro]');
+  const t = e.target.closest('[data-view],[data-pdf],[data-edit-mov],[data-del-mov],[data-edit-res],[data-del-res]');
   if (!t) return;
 
   if (t.dataset.view) return setView(t.dataset.view);
@@ -863,12 +673,8 @@ document.addEventListener('click', async (e) => {
   try {
     if (t.dataset.editMov) openMovModal(STATE.rows.find((x) => x.id == t.dataset.editMov));
     else if (t.dataset.delMov) { if (confirm('¿Eliminar este movimiento?')) { STATE = await api('DELETE', `/api/movimientos/${t.dataset.delMov}`); render(); } }
-    else if (t.dataset.editCli) openClimaModal(STATE.clima.find((x) => x.id == t.dataset.editCli));
-    else if (t.dataset.delCli) { if (confirm('¿Eliminar esta aportación?')) { STATE = await api('DELETE', `/api/clima/${t.dataset.delCli}`); render(); } }
     else if (t.dataset.editRes) openReservaModal(STATE.reserva.find((x) => x.id == t.dataset.editRes));
     else if (t.dataset.delRes) { if (confirm('¿Eliminar este registro de reserva?')) { STATE = await api('DELETE', `/api/reserva/${t.dataset.delRes}`); render(); } }
-    else if (t.dataset.editPro) openPromejoraModal(STATE.promejora.find((x) => x.id == t.dataset.editPro));
-    else if (t.dataset.delPro) { if (confirm('¿Eliminar este movimiento de promejora?')) { STATE = await api('DELETE', `/api/promejora/${t.dataset.delPro}`); render(); } }
   } catch (err) { alert(err.message); }
 });
 

@@ -6,12 +6,15 @@ Aplicación web de contabilidad para **Grupo Bill W**. Sin usuarios ni contrase�
 ## Qué incluye
 
 - **Panel lateral izquierdo** con navegación entre vistas.
-- **Resumen general (ejecutivo):** saldo actual, total séptimas, total gastos, reserva, clima, promejora.
+- **Resumen general (ejecutivo):** saldo actual, total séptimas, total gastos y reserva.
 - **Resúmenes por mes (ejecutivos):** ingresos, gastos y saldo de fin de mes; con detalle desplegable.
 - **Movimientos:** fecha, séptima (ingreso), gastos y comentarios del concepto. El **saldo corrido se calcula solo**.
 - **Reserva:** fondo que se desprende del saldo final de cada mes.
-- **Aportación clima:** fondo **independiente** del saldo general, solo con *monto* y *nombre*.
 - **Datos precargados** desde el Excel original (`data/seed.json`). No hay que volver a capturarlos.
+
+> Los apartados **Aportación clima** y **Promejora** se retiraron de la aplicación.
+> Sus registros siguen guardados en `db.json` (campos `clima` y `promejora`) como
+> historial: no se muestran ni se pueden editar, pero tampoco se borran.
 
 Saldo inicial `$383.50` · saldo actual `$1,549.00` · gastos `$13,292.00` (idéntico a la hoja original).
 

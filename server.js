@@ -121,12 +121,13 @@ function ensureDb() {
     const seed = JSON.parse(fs.readFileSync(SEED_FILE, 'utf-8'));
     const db = {
       saldoInicial: seed.saldoInicial || 0,
-      promejora: seed.promejora || 0,
       movimientos: (seed.movimientos || []).map((m, i) => ({ id: i + 1, ...m })),
-      clima: (seed.clima || []).map((c, i) => ({ id: i + 1, ...c })),
       reserva: (seed.reserva || []).map((r, i) => ({ id: i + 1, ...r })),
-      promejora: [],
-      seq: { mov: (seed.movimientos || []).length, clima: (seed.clima || []).length, reserva: (seed.reserva || []).length, promejora: 0 }
+      // Fondos descontinuados (clima y promejora): se conservan en la base
+      // únicamente como historial; ya no se muestran ni se pueden editar.
+      clima: (seed.clima || []).map((c, i) => ({ id: i + 1, ...c })),
+      promejora: seed.promejora ?? [],
+      seq: { mov: (seed.movimientos || []).length, reserva: (seed.reserva || []).length }
     };
     writeDb(db);
     return db;
@@ -134,16 +135,10 @@ function ensureDb() {
   return readDb();
 }
 
-// Normaliza bases existentes (migra "promejora" numérica al nuevo libro)
+// Normaliza bases existentes. Los campos de clima y promejora se dejan
+// intactos: no se usan, pero se reescriben tal cual para no perder historial.
 function normalizeDb(db) {
   db.seq = db.seq || {};
-  if (!Array.isArray(db.promejora)) {
-    const old = parseFloat(db.promejora);
-    db.promejora = Number.isFinite(old) && old !== 0
-      ? [{ id: 1, fecha: '', ingreso: old, gasto: 0, comentario: 'Saldo inicial de promejora' }]
-      : [];
-  }
-  if (db.seq.promejora == null) db.seq.promejora = db.promejora.length;
   return db;
 }
 
@@ -252,29 +247,10 @@ function computeState() {
   const meses = [...mesesMap.values()]
     .sort((a, b) => a.mes.localeCompare(b.mes));
 
-  // Clima y reserva: cada registro puede tener egresos (gastosItems) que
-  // restan al fondo. El total es la suma de aportaciones menos esos egresos.
-  const climaEgresos = DB.clima.reduce((a, c) => a + (gastosItemsTotal(c) || 0), 0);
-  const totalClima = DB.clima.reduce((a, c) => a + num(c.monto), 0) - climaEgresos;
+  // Reserva: cada registro puede tener egresos (gastosItems) que restan al
+  // fondo. El total es la suma de aportaciones menos esos egresos.
   const reservaEgresos = DB.reserva.reduce((a, r) => a + (gastosItemsTotal(r) || 0), 0);
   const totalReserva = DB.reserva.reduce((a, r) => a + num(r.monto), 0) - reservaEgresos;
-
-  // Promejora: saldo independiente con su propio libro de ingresos/gastos
-  const promejoraRows = DB.promejora.map((p) => {
-    const itemsTotal = gastosItemsTotal(p);
-    return {
-      id: p.id,
-      fecha: p.fecha || '',
-      mes: (p.fecha || '').slice(0, 7),
-      ingreso: num(p.ingreso),
-      gasto: itemsTotal != null ? itemsTotal : num(p.gasto),
-      comentario: p.comentario || '',
-      gastosItems: Array.isArray(p.gastosItems) ? p.gastosItems : null
-    };
-  }).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
-  const promejoraIngresos = promejoraRows.reduce((a, r) => a + r.ingreso, 0);
-  const promejoraGastos = promejoraRows.reduce((a, r) => a + r.gasto, 0);
-  const promejoraSaldo = promejoraIngresos - promejoraGastos;
 
   return {
     saldoInicial: num(DB.saldoInicial),
@@ -287,16 +263,10 @@ function computeState() {
       totalIngresos: num(DB.saldoInicial) + totalSeptimas,
       saldoActual,
       totalReserva,
-      totalClima,
-      promejora: promejoraSaldo,
-      promejoraIngresos,
-      promejoraGastos,
       numMovimientos: rows.length
     },
     meses,
-    clima: DB.clima,
-    reserva: DB.reserva,
-    promejora: promejoraRows
+    reserva: DB.reserva
   };
 }
 
@@ -357,43 +327,6 @@ app.delete('/api/movimientos/:id', (req, res) => {
   res.json(computeState());
 });
 
-// --- Aportación clima ---
-app.post('/api/clima', (req, res) => {
-  const { nombre, monto, comentario, gastosItems } = req.body || {};
-  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
-  DB.seq.clima += 1;
-  const c = { id: DB.seq.clima, nombre, monto: num(monto), comentario: comentario || '' };
-  const items = parseGastosItems(gastosItems);
-  if (items && items.length) c.gastosItems = items;
-  DB.clima.push(c);
-  save();
-  res.json(computeState());
-});
-
-app.put('/api/clima/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const c = DB.clima.find((x) => x.id === id);
-  if (!c) return res.status(404).json({ error: 'No encontrado' });
-  const { nombre, monto, comentario, gastosItems } = req.body || {};
-  if (nombre !== undefined) c.nombre = nombre;
-  if (monto !== undefined) c.monto = num(monto);
-  if (comentario !== undefined) c.comentario = comentario;
-  if (gastosItems !== undefined) {
-    const items = parseGastosItems(gastosItems);
-    if (items && items.length) c.gastosItems = items;
-    else delete c.gastosItems;
-  }
-  save();
-  res.json(computeState());
-});
-
-app.delete('/api/clima/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  DB.clima = DB.clima.filter((x) => x.id !== id);
-  save();
-  res.json(computeState());
-});
-
 // --- Reserva ---
 app.post('/api/reserva', (req, res) => {
   const { mes, monto, comentario, gastosItems } = req.body || {};
@@ -426,54 +359,6 @@ app.put('/api/reserva/:id', (req, res) => {
 app.delete('/api/reserva/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
   DB.reserva = DB.reserva.filter((x) => x.id !== id);
-  save();
-  res.json(computeState());
-});
-
-// --- Promejora (saldo independiente: ingresos y gastos por concepto) ---
-app.post('/api/promejora', (req, res) => {
-  const { fecha, ingreso, gasto, comentario, gastosItems } = req.body || {};
-  if (!fecha) return res.status(400).json({ error: 'La fecha es obligatoria' });
-  DB.seq.promejora += 1;
-  const p = { id: DB.seq.promejora, fecha, ingreso: num(ingreso), gasto: num(gasto), comentario: comentario || '' };
-  const items = parseGastosItems(gastosItems);
-  if (items && items.length) {
-    p.gastosItems = items;
-    p.gasto = items.reduce((a, it) => a + num(it.monto), 0);
-  }
-  DB.promejora.push(p);
-  save();
-  res.json(computeState());
-});
-
-app.put('/api/promejora/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const p = DB.promejora.find((x) => x.id === id);
-  if (!p) return res.status(404).json({ error: 'No encontrado' });
-  const { fecha, ingreso, gasto, comentario, gastosItems } = req.body || {};
-  if (fecha !== undefined) p.fecha = fecha;
-  if (ingreso !== undefined) p.ingreso = num(ingreso);
-  if (comentario !== undefined) p.comentario = comentario;
-  if (gastosItems !== undefined) {
-    const items = parseGastosItems(gastosItems);
-    if (items && items.length) {
-      p.gastosItems = items;
-      p.gasto = items.reduce((a, it) => a + num(it.monto), 0);
-    } else {
-      delete p.gastosItems;
-      p.gasto = gasto !== undefined ? num(gasto) : 0;
-    }
-  } else if (gasto !== undefined) {
-    p.gasto = num(gasto);
-    delete p.gastosItems;
-  }
-  save();
-  res.json(computeState());
-});
-
-app.delete('/api/promejora/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  DB.promejora = DB.promejora.filter((x) => x.id !== id);
   save();
   res.json(computeState());
 });
