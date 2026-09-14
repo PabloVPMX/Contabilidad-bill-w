@@ -251,6 +251,25 @@ function viewMeses(root) {
 
   root.appendChild(elFromHtml(yearMonthFilterHtml('mes', years, MES_YEAR, MES_MONTH)));
 
+  // El reporte mensual sigue disponible en cada renglón. Esta tarjeta permite
+  // generar el mismo tipo de corte para cualquier periodo de días.
+  const fechas = STATE.rows.map((r) => r.fecha).filter(Boolean).sort();
+  const inicioSugerido = fechas[0] || todayLocal();
+  const finSugerido = fechas[fechas.length - 1] || todayLocal();
+  const rangeCard = document.createElement('div');
+  rangeCard.className = 'card range-report';
+  rangeCard.innerHTML = `
+    <div class="card-head"><h2>Reporte por rango de fechas</h2></div>
+    <div class="card-body">
+      <form id="date-range-report" class="range-report-form">
+        <label>Desde <input name="desde" type="date" value="${esc(inicioSugerido)}" required></label>
+        <label>Hasta <input name="hasta" type="date" value="${esc(finSugerido)}" required></label>
+        <button class="btn primary" type="submit">📄 Generar PDF</button>
+      </form>
+      <p class="muted range-report-help">Incluye los movimientos registrados entre ambas fechas, inclusive.</p>
+    </div>`;
+  root.appendChild(rangeCard);
+
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
@@ -277,6 +296,11 @@ function viewMeses(root) {
 
   $('#mes-year').onchange = (e) => { MES_YEAR = e.target.value; render(); };
   $('#mes-month').onchange = (e) => { MES_MONTH = e.target.value; render(); };
+  $('#date-range-report').onsubmit = (e) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    exportDateRangePdf(data.get('desde'), data.get('hasta'));
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -367,6 +391,97 @@ function viewReserva(root) {
 
 // ---------------------------------------------------------------------------
 // Exportar reporte de tesorería mensual a PDF (vía impresión del navegador)
+function exportDateRangePdf(desde, hasta) {
+  if (!desde || !hasta || desde > hasta) {
+    alert('Selecciona un rango de fechas válido.');
+    return;
+  }
+
+  const rows = STATE.rows.filter((r) => r.fecha >= desde && r.fecha <= hasta);
+  if (!rows.length) {
+    alert('No hay movimientos registrados en el rango seleccionado.');
+    return;
+  }
+
+  const ingresos = rows.reduce((a, r) => a + r.septima, 0);
+  const gastos = rows.reduce((a, r) => a + r.gastos, 0);
+  const ingresosRows = rows.filter((r) => r.septima > 0);
+  const saldoInicial = rows[0].saldoAnterior;
+  const saldoFinal = rows[rows.length - 1].total;
+  const hoy = fechaLabel(todayLocal());
+  const periodo = `${fechaLabel(desde)} al ${fechaLabel(hasta)}`;
+  // La reserva se registra por mes, no por día. Para conservarla en el corte
+  // se consideran los meses que abarca el rango elegido.
+  const mesDesde = desde.slice(0, 7);
+  const mesHasta = hasta.slice(0, 7);
+  const reservaPeriodo = STATE.reserva.filter((r) => (r.mes || '') >= mesDesde && (r.mes || '') <= mesHasta);
+  const reservaAnterior = STATE.reserva
+    .filter((r) => (r.mes || '') < mesDesde)
+    .reduce((a, r) => a + (Number(r.monto) || 0) - egresosTotal(r), 0);
+  const reservaAportada = reservaPeriodo.reduce((a, r) => a + (Number(r.monto) || 0), 0);
+  const reservaEgresos = reservaPeriodo.reduce((a, r) => a + egresosTotal(r), 0);
+  const reservaTotal = reservaAnterior + reservaAportada - reservaEgresos;
+
+  const gastoLineas = [];
+  for (const r of rows) {
+    if (Array.isArray(r.gastosItems) && r.gastosItems.length) {
+      for (const it of r.gastosItems) {
+        gastoLineas.push({ fecha: r.fecha, concepto: it.concepto || 'Sin concepto especificado', monto: Number(it.monto) || 0 });
+      }
+    } else if (r.gastos > 0) {
+      gastoLineas.push({ fecha: r.fecha, concepto: r.comentario || 'Sin concepto especificado', monto: r.gastos });
+    }
+  }
+  const desgloseGastos = gastoLineas.length
+    ? gastoLineas.map((g) => `<tr><td>${esc(fechaLabel(g.fecha))}</td><td>${esc(g.concepto)}</td><td class="num">${money(g.monto)}</td></tr>`).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:#666">Sin gastos en el periodo.</td></tr>';
+
+  const comentarioEsGasto = (r) => !(Array.isArray(r.gastosItems) && r.gastosItems.length) && r.gastos > 0;
+  const notas = rows.filter((r) => (r.comentario || '').trim() !== '' && !comentarioEsGasto(r));
+  const seccionNotas = notas.length ? `<h2>Anotaciones del periodo</h2>
+    <table><thead><tr><th>Fecha</th><th>Anotación</th></tr></thead><tbody>${notas.map((r) =>
+      `<tr><td style="white-space:nowrap">${esc(fechaLabel(r.fecha))}</td><td>${esc(r.comentario)}</td></tr>`).join('')}
+    </tbody></table>` : '';
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <title>Reporte de Tesorería ${esc(periodo)} - Grupo Bill W</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 32px 38px; font-size: 13px; }
+      .head { display: flex; align-items: center; gap: 20px; border-bottom: 3px solid #1d2a8a; padding-bottom: 16px; margin-bottom: 22px; }
+      .head img { height: 88px; } .head h1 { font-size: 19px; margin: 0 0 4px; color: #1d2a8a; } .head .date { font-size: 12px; color: #555; }
+      h2 { font-size: 14px; color: #1d2a8a; border-bottom: 1px solid #d4d8ec; padding-bottom: 5px; margin: 24px 0 10px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 6px; } th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #e4e6ef; }
+      th { background: #eef0fb; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: #333; } td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .resumen td:first-child { color: #444; } .resumen td.num { font-weight: 700; } .total-row td { border-top: 2px solid #1d2a8a; font-weight: 800; font-size: 14px; }
+      .pos { color: #15803d; } .neg { color: #b91c1c; } .firma { margin: 120px auto 0; width: 300px; text-align: center; } .firma .line { border-top: 1.5px solid #333; padding-top: 8px; }
+      .firma .name { font-weight: 700; font-size: 14px; } .firma .role, .foot { color: #555; font-size: 12px; } .foot { margin-top: 40px; font-size: 10px; color: #999; text-align: center; }
+      @media print { body { padding: 0; } @page { margin: 16mm; } }
+    </style></head><body>
+    <div class="head"><img src="logo.webp" alt="A.A."><div><h1>Reporte de Tesorería · Grupo Bill W</h1><div class="date">Periodo: ${esc(periodo)} · Generado el ${hoy}</div></div></div>
+    <h2>Resumen del periodo</h2><table class="resumen"><tbody>
+      <tr><td>Saldo inicial</td><td class="num">${money(saldoInicial)}</td></tr><tr><td>Ingresos (séptimas)</td><td class="num pos">${money(ingresos)}</td></tr>
+      <tr><td>Gastos</td><td class="num neg">${money(gastos)}</td></tr><tr class="total-row"><td>Saldo final</td><td class="num">${money(saldoFinal)}</td></tr>
+    </tbody></table>
+    <h2>Ingresos del periodo</h2><table class="resumen"><tbody><tr><td>Número de sesiones con ingreso</td><td class="num">${ingresosRows.length}</td></tr>
+      <tr><td>Promedio de ingreso por sesión</td><td class="num pos">${money(ingresosRows.length ? ingresos / ingresosRows.length : 0)}</td></tr><tr class="total-row"><td>Total ingresos</td><td class="num pos">${money(ingresos)}</td></tr></tbody></table>
+    <h2>Desglose de gastos del periodo</h2><table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th></tr></thead><tbody>${desgloseGastos}<tr class="total-row"><td colspan="2">Total gastos</td><td class="num neg">${money(gastos)}</td></tr></tbody></table>
+    ${seccionNotas}
+    <h2>Reserva</h2><table class="resumen"><tbody><tr><td>Saldo anterior a ${esc(mesLabel(mesDesde))}</td><td class="num">${money(reservaAnterior)}</td></tr>
+      <tr><td>Reserva aportada en los meses del periodo</td><td class="num pos">${money(reservaAportada)}</td></tr>${reservaEgresos ? `<tr><td>Egresos de reserva en los meses del periodo</td><td class="num neg">${money(reservaEgresos)}</td></tr>` : ''}
+      <tr class="total-row"><td>Reserva acumulada</td><td class="num">${money(reservaTotal)}</td></tr></tbody></table>
+    <p style="font-size:11px;color:#666">La reserva se registra por mes; se incluyen los meses que abarca el rango seleccionado.</p>
+    <div class="firma"><div class="line"><div class="name">Pablo B</div><div class="role">Tesorero de Grupo</div></div></div><div class="foot">Grupo Bill W · Alcohólicos Anónimos · Reporte de tesorería</div>
+    <script>window.onload = function () { var img = document.images[0]; function go() { setTimeout(function () { window.focus(); window.print(); }, 150); } if (img && !img.complete) { img.onload = go; img.onerror = go; } else { go(); } };<\/script>
+    </body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permite las ventanas emergentes para generar el PDF.'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
 function exportMonthlyPdf(mes) {
   const m = STATE.meses.find((x) => x.mes === mes);
   if (!m) return;
