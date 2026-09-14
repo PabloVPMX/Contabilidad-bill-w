@@ -253,17 +253,14 @@ function viewMeses(root) {
 
   // El reporte mensual sigue disponible en cada renglón. Esta tarjeta permite
   // generar el mismo tipo de corte para cualquier periodo de días.
-  const fechas = STATE.rows.map((r) => r.fecha).filter(Boolean).sort();
-  const inicioSugerido = fechas[0] || todayLocal();
-  const finSugerido = fechas[fechas.length - 1] || todayLocal();
   const rangeCard = document.createElement('div');
   rangeCard.className = 'card range-report';
   rangeCard.innerHTML = `
     <div class="card-head"><h2>Reporte por rango de fechas</h2></div>
     <div class="card-body">
       <form id="date-range-report" class="range-report-form">
-        <label>Desde <input name="desde" type="date" value="${esc(inicioSugerido)}" required></label>
-        <label>Hasta <input name="hasta" type="date" value="${esc(finSugerido)}" required></label>
+        <label>Desde <input name="desde" type="date" required></label>
+        <label>Hasta <input name="hasta" type="date" required></label>
         <button class="btn primary" type="submit">📄 Generar PDF</button>
       </form>
       <p class="muted range-report-help">Incluye los movimientos registrados entre ambas fechas, inclusive.</p>
