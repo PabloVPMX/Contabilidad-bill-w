@@ -9,7 +9,7 @@ Aplicación web de contabilidad para **Grupo Bill W**, con acceso por palabra se
 - **Resúmenes por mes (ejecutivos):** ingresos, gastos y saldo de fin de mes; con detalle desplegable.
 - **Movimientos:** fecha, séptima (ingreso), gastos y comentarios del concepto. El **saldo corrido se calcula solo**.
 - **Reserva:** fondo que se desprende del saldo final de cada mes.
-- **Séptimas extras:** fondo independiente con fecha, motivo y varios conceptos de ingreso y egreso; totales y saldo acumulado automáticos. Incluye edición, eliminación y filtros por año/mes.
+- **Séptimas extras:** colectas por motivo (por ejemplo, Cafetera), meta opcional y estado abierto/cerrado. Cada aportación registra persona, fecha y monto; cada gasto registra concepto, fecha y monto. Incluye edición, eliminación de registros y filtros por año/mes.
 - **Reportes:** Séptimas extras aparece por separado en el resumen anual, en la tabla mensual y en los reportes PDF mensual y por rango de fechas, con saldo anterior, entradas, salidas, conceptos y saldo final. También se incluyen meses que solo tienen actividad de este fondo.
 - **Datos precargados** desde el Excel original (`data/seed.json`). No hay que volver a capturarlos.
 
@@ -55,9 +55,11 @@ Borre `db.json` del volumen y reinicie: se regenerará desde `data/seed.json`.
 
 ## Séptimas extras y actualización
 
-Los registros se guardan en `septimasExtras` dentro de la misma base y los mismos respaldos. Al abrir una base anterior se inicializa el fondo vacío y su secuencia de identificadores; los demás fondos y su historial se conservan. No hay que borrar ni regenerar `db.json` al desplegar esta actualización.
+Los registros se guardan en `colectasExtras` dentro de la misma base y los mismos respaldos. La actualización convierte los registros del formato anterior en colectas agrupadas por motivo, conservando fechas, nombres (antes conceptos de ingreso) y montos. La conversión es idempotente y conserva también el formato anterior como historial; no vuelve a importarlo después de guardar el nuevo formato. No hay que borrar ni regenerar `db.json` al desplegar.
 
-Cada registro tiene fecha, motivo, `ingresosItems` y `gastosItems` (listas de concepto y monto). Se admite ingreso, egreso o ambos en la misma fecha. Cada concepto requiere descripción y un monto positivo con máximo dos decimales. El saldo del fondo empieza en cero y se calcula cronológicamente como ingresos menos egresos, sin sumarse al saldo general ni a la reserva.
+Cada colecta tiene motivo, meta opcional, estado y movimientos individuales. Una persona puede aportar varias veces en distintas fechas. Se muestran total recaudado, faltante para la meta, gastos y saldo disponible. Cerrar la colecta impide nuevos registros hasta reabrirla; permite corregir registros existentes. Solo se puede eliminar una colecta vacía.
+
+Los reportes mensual y por fechas incluyen cada colecta por separado con persona/concepto, fecha, monto y saldo anterior/final. El resumen anual y los saldos generales mantienen este fondo separado de Movimientos y Reserva. Las pestañas abiertas con el formulario anterior deben actualizarse antes de guardar.
 
 Para ejecutar las pruebas de cálculo, compatibilidad de bases y contenido de reportes: `npm test` (Node 18 o superior).
 
