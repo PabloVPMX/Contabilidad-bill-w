@@ -139,8 +139,23 @@ function ensureDb() {
 // intactos: no se usan, pero se reescriben tal cual para no perder historial.
 function normalizeDb(db) {
   db.seq = db.seq || {};
-  db.septimasExtras = db.septimasExtras || [];
-  db.seq.extras = Math.max(Number(db.seq.extras) || 0, ...db.septimasExtras.map((r) => Number(r.id) || 0));
+  // Migración idempotente: conserva el formato anterior como historial.
+  if (!Array.isArray(db.colectasExtras)) {
+    db.colectasExtras = [];
+    for (const r of db.septimasExtras || []) {
+      let c = db.colectasExtras.find((c) => c.motivo.trim().toLowerCase() === r.motivo.trim().toLowerCase());
+      if (!c) {
+        c = { id: db.colectasExtras.length + 1, motivo: r.motivo, meta: 0, estado: 'abierta', movimientos: [], seq: 0 };
+        db.colectasExtras.push(c);
+      }
+      for (const [tipo, items] of [['aportacion', r.ingresosItems || []], ['gasto', r.gastosItems || []]]) {
+        for (const it of items) c.movimientos.push({ id: ++c.seq, tipo, fecha: r.fecha,
+          ...(tipo === 'aportacion' ? { persona: it.concepto } : { concepto: it.concepto }), monto: it.monto });
+      }
+    }
+  }
+  db.seq.colectas = Math.max(Number(db.seq.colectas) || 0, ...db.colectasExtras.map((c) => c.id));
+  for (const c of db.colectasExtras) c.seq = Math.max(Number(c.seq) || 0, ...c.movimientos.map((m) => m.id));
   return db;
 }
 
@@ -254,12 +269,24 @@ function computeState() {
   const reservaEgresos = DB.reserva.reduce((a, r) => a + (gastosItemsTotal(r) || 0), 0);
   const totalReserva = DB.reserva.reduce((a, r) => a + num(r.monto), 0) - reservaEgresos;
 
+  const centsTotal = (rows) => rows.reduce((a, r) => a + Math.round(num(r.monto) * 100), 0) / 100;
+  const colectasExtras = DB.colectasExtras.map((c) => {
+    const movimientos = [...c.movimientos].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+    const recaudado = centsTotal(movimientos.filter((m) => m.tipo === 'aportacion'));
+    const gastado = centsTotal(movimientos.filter((m) => m.tipo === 'gasto'));
+    return { ...c, movimientos, recaudado, gastado,
+      saldo: Math.round((recaudado - gastado) * 100) / 100,
+      faltante: Math.max(0, Math.round((num(c.meta) - recaudado) * 100) / 100) };
+  });
   let saldoExtras = 0;
-  const septimasExtras = [...DB.septimasExtras]
-    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id)
+  // Libro cronológico derivado para los resúmenes y reportes existentes.
+  const septimasExtras = colectasExtras.flatMap((c) => c.movimientos.map((m) => ({
+    id: `${c.id}-${m.id}`, colectaId: c.id, motivo: c.motivo, fecha: m.fecha,
+    ingresosItems: m.tipo === 'aportacion' ? [{ concepto: m.persona, monto: m.monto }] : [],
+    gastosItems: m.tipo === 'gasto' ? [{ concepto: m.concepto, monto: m.monto }] : []
+  }))).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.colectaId - b.colectaId)
     .map((r) => {
-      const ingresos = r.ingresosItems.reduce((a, it) => a + num(it.monto), 0);
-      const egresos = gastosItemsTotal(r) || 0;
+      const ingresos = centsTotal(r.ingresosItems), egresos = centsTotal(r.gastosItems);
       const saldoAnterior = saldoExtras;
       saldoExtras = Math.round((saldoExtras + ingresos - egresos) * 100) / 100;
       return { ...r, ingresos, egresos, saldoAnterior, saldo: saldoExtras };
@@ -281,7 +308,8 @@ function computeState() {
     },
     meses,
     reserva: DB.reserva,
-    septimasExtras
+    septimasExtras,
+    colectasExtras
   };
 }
 
@@ -378,59 +406,80 @@ app.delete('/api/reserva/:id', (req, res) => {
   res.json(computeState());
 });
 
-// --- Séptimas extras: fondo independiente, conceptos en centavos ---
-function parseExtras(body) {
-  const { fecha, motivo, ingresosItems, gastosItems } = body || {};
-  const date = new Date(`${fecha}T00:00:00Z`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '') || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== fecha) {
-    throw new Error('La fecha es obligatoria y debe ser válida');
-  }
-  if (typeof motivo !== 'string' || !motivo.trim()) throw new Error('El motivo es obligatorio');
-  function items(value) {
-    if (value === undefined) return [];
-    if (!Array.isArray(value)) throw new Error('Los conceptos deben ser una lista');
-    return value.map((it) => {
-      const concepto = String(it?.concepto || '').trim();
-      const monto = Number(it?.monto);
-      if (!concepto && (it?.monto === '' || monto === 0)) return null;
-      if (!concepto || !Number.isFinite(monto) || monto <= 0 || !Number.isSafeInteger(Math.round(monto * 100)) || Math.abs(monto * 100 - Math.round(monto * 100)) > 0.000001) {
-        throw new Error('Cada concepto requiere descripción y monto positivo con máximo dos decimales');
-      }
-      return { concepto, monto: Math.round(monto * 100) / 100 };
-    }).filter(Boolean);
-  }
-  const ingresos = items(ingresosItems);
-  const gastos = items(gastosItems);
-  if (!ingresos.length && !gastos.length) throw new Error('Agrega al menos un concepto de ingreso o egreso');
-  return { fecha, motivo: motivo.trim(), ingresosItems: ingresos, gastosItems: gastos };
+// --- Colectas de Séptimas extras ---
+function fechaValida(fecha) {
+  const d = new Date(`${fecha}T00:00:00Z`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') && Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === fecha;
 }
-
-app.post('/api/septimas-extras', (req, res) => {
-  let record;
-  try { record = parseExtras(req.body); } catch (err) { return res.status(400).json({ error: err.message }); }
-  DB.seq.extras += 1;
-  DB.septimasExtras.push({ id: DB.seq.extras, ...record });
-  save();
-  res.json(computeState());
-});
-
-app.put('/api/septimas-extras/:id', (req, res) => {
-  const record = DB.septimasExtras.find((r) => r.id === Number(req.params.id));
-  if (!record) return res.status(404).json({ error: 'No encontrado' });
+function montoValido(value, zero = false) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || (zero ? n < 0 : n <= 0) || !Number.isSafeInteger(Math.round(n * 100)) || Math.abs(n * 100 - Math.round(n * 100)) > 0.000001) {
+    throw new Error('El monto debe ser ' + (zero ? 'cero o positivo' : 'positivo') + ', con máximo dos decimales');
+  }
+  return Math.round(n * 100) / 100;
+}
+function parseColecta(body) {
+  const motivo = String(body?.motivo || '').trim();
+  if (!motivo) throw new Error('El motivo es obligatorio');
+  const meta = montoValido(body?.meta || 0, true);
+  const estado = body?.estado || 'abierta';
+  if (!['abierta', 'cerrada'].includes(estado)) throw new Error('Estado inválido');
+  return { motivo, meta, estado };
+}
+function parseAporte(body) {
+  if (!fechaValida(body?.fecha)) throw new Error('La fecha es obligatoria y debe ser válida');
+  const tipo = body?.tipo;
+  if (!['aportacion', 'gasto'].includes(tipo)) throw new Error('Tipo inválido');
+  const key = tipo === 'aportacion' ? 'persona' : 'concepto';
+  const texto = String(body?.[key] || '').trim();
+  if (!texto) throw new Error(tipo === 'aportacion' ? 'El nombre de quien aporta es obligatorio' : 'El concepto del gasto es obligatorio');
+  return { fecha: body.fecha, tipo, [key]: texto, monto: montoValido(body.monto) };
+}
+app.post('/api/colectas', (req, res) => {
   let value;
-  try { value = parseExtras(req.body); } catch (err) { return res.status(400).json({ error: err.message }); }
-  Object.assign(record, value);
-  save();
-  res.json(computeState());
+  try { value = parseColecta(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+  DB.colectasExtras.push({ id: ++DB.seq.colectas, ...value, movimientos: [], seq: 0 });
+  save(); res.json(computeState());
 });
-
-app.delete('/api/septimas-extras/:id', (req, res) => {
-  const index = DB.septimasExtras.findIndex((r) => r.id === Number(req.params.id));
-  if (index < 0) return res.status(404).json({ error: 'No encontrado' });
-  DB.septimasExtras.splice(index, 1);
-  save();
-  res.json(computeState());
+app.put('/api/colectas/:id', (req, res) => {
+  const c = DB.colectasExtras.find((c) => c.id === Number(req.params.id));
+  if (!c) return res.status(404).json({ error: 'Colecta no encontrada' });
+  let value;
+  try { value = parseColecta(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+  Object.assign(c, value); save(); res.json(computeState());
 });
+app.delete('/api/colectas/:id', (req, res) => {
+  const index = DB.colectasExtras.findIndex((c) => c.id === Number(req.params.id));
+  if (index < 0) return res.status(404).json({ error: 'Colecta no encontrada' });
+  if (DB.colectasExtras[index].movimientos.length) return res.status(409).json({ error: 'Esta colecta tiene registros. Puedes cerrarla para conservar su historial.' });
+  DB.colectasExtras.splice(index, 1); save(); res.json(computeState());
+});
+app.post('/api/colectas/:id/movimientos', (req, res) => {
+  const c = DB.colectasExtras.find((c) => c.id === Number(req.params.id));
+  if (!c) return res.status(404).json({ error: 'Colecta no encontrada' });
+  if (c.estado === 'cerrada') return res.status(409).json({ error: 'Reabre la colecta antes de agregar registros' });
+  let value;
+  try { value = parseAporte(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+  c.movimientos.push({ id: ++c.seq, ...value }); save(); res.json(computeState());
+});
+app.put('/api/colectas/:id/movimientos/:movId', (req, res) => {
+  const c = DB.colectasExtras.find((c) => c.id === Number(req.params.id));
+  const index = c?.movimientos.findIndex((m) => m.id === Number(req.params.movId));
+  if (!c || index < 0) return res.status(404).json({ error: 'Registro no encontrado' });
+  let value;
+  try { value = parseAporte(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+  c.movimientos[index] = { id: c.movimientos[index].id, ...value }; save(); res.json(computeState());
+});
+app.delete('/api/colectas/:id/movimientos/:movId', (req, res) => {
+  const c = DB.colectasExtras.find((c) => c.id === Number(req.params.id));
+  const index = c?.movimientos.findIndex((m) => m.id === Number(req.params.movId));
+  if (!c || index < 0) return res.status(404).json({ error: 'Registro no encontrado' });
+  c.movimientos.splice(index, 1); save(); res.json(computeState());
+});
+// Evita escrituras desde una pestaña con la versión anterior del formulario.
+for (const [method, url] of [['post', '/api/septimas-extras'], ['put', '/api/septimas-extras/:id'], ['delete', '/api/septimas-extras/:id']]) {
+  app[method](url, (req, res) => res.status(409).json({ error: 'Actualiza la página para usar el nuevo registro por colectas' }));
+}
 
 // --- Configuración (saldo inicial) ---
 app.put('/api/config', (req, res) => {

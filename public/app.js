@@ -5,6 +5,7 @@ let VIEW = 'movimientos';
 let MOV_YEAR = 'all', MOV_MONTH = 'all'; // filtros de la vista Movimientos
 let MES_YEAR = 'all', MES_MONTH = 'all'; // filtros de la vista Resúmenes por mes
 let EXTRA_YEAR = 'all', EXTRA_MONTH = 'all';
+let COLECTA_ID = null;
 
 const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -89,7 +90,7 @@ function render() {
   actions.innerHTML = '';
   if (VIEW === 'movimientos') actions.appendChild(btn('+ Nuevo movimiento', 'primary', () => openMovModal()));
   if (VIEW === 'reserva') actions.appendChild(btn('+ Nuevo registro', 'primary', () => openReservaModal()));
-  if (VIEW === 'extras') actions.appendChild(btn('+ Nuevo registro', 'primary', () => openExtraModal()));
+  if (VIEW === 'extras') actions.appendChild(btn('+ Nueva colecta', 'primary', () => openColectaModal()));
 
   const root = $('#view-root');
   root.innerHTML = '';
@@ -684,8 +685,8 @@ function reporteExtrasHtml(desde, hasta) {
   const ingresos = records.reduce((a, r) => a + r.ingresos, 0);
   const egresos = records.reduce((a, r) => a + r.egresos, 0);
   const lines = records.flatMap((r) => [
-    ...r.ingresosItems.map((it) => ({ ...it, fecha: r.fecha, motivo: r.motivo, tipo: 'Entrada', cls: 'pos' })),
-    ...r.gastosItems.map((it) => ({ ...it, fecha: r.fecha, motivo: r.motivo, tipo: 'Salida', cls: 'neg' }))
+    ...r.ingresosItems.map((it) => ({ ...it, fecha: r.fecha, motivo: r.motivo, colectaId: r.colectaId, tipo: 'Aportación', cls: 'pos' })),
+    ...r.gastosItems.map((it) => ({ ...it, fecha: r.fecha, motivo: r.motivo, colectaId: r.colectaId, tipo: 'Gasto', cls: 'neg' }))
   ]);
   return `<h2>Séptimas extras · Fondo independiente</h2>
     <table class="resumen"><tbody>
@@ -694,72 +695,109 @@ function reporteExtrasHtml(desde, hasta) {
       <tr><td>Egresos del periodo</td><td class="num neg">${money(egresos)}</td></tr>
       <tr class="total-row"><td>Saldo final de Séptimas extras</td><td class="num">${money(anterior + ingresos - egresos)}</td></tr>
     </tbody></table>
-    <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Motivo</th><th>Concepto</th><th class="num">Monto</th></tr></thead><tbody>
-      ${lines.length ? lines.map((it) => `<tr><td>${esc(fechaLabel(it.fecha))}</td><td>${it.tipo}</td><td>${esc(it.motivo)}</td><td>${esc(it.concepto)}</td><td class="num ${it.cls}">${money(it.monto)}</td></tr>`).join('') : '<tr><td colspan="5">Sin movimientos de Séptimas extras en el periodo.</td></tr>'}
-    </tbody></table>`;
+    ${!lines.length ? '<p>Sin movimientos de Séptimas extras en el periodo.</p>' : ''}
+    ${[...new Set([...lines.map((it) => it.colectaId), ...STATE.colectasExtras.filter((c) => STATE.septimasExtras.filter((r) => r.colectaId === c.id && r.fecha < desde).reduce((a, r) => a + r.ingresos - r.egresos, 0) !== 0).map((c) => c.id)])].map((id) => {
+      const items = lines.filter((it) => it.colectaId === id);
+      const c = STATE.colectasExtras.find((c) => c.id === id);
+      const prev = STATE.septimasExtras.filter((r) => r.colectaId === id && r.fecha < desde).reduce((a, r) => a + r.ingresos - r.egresos, 0);
+      const entrada = items.filter((it) => it.tipo === 'Aportación').reduce((a, it) => a + it.monto, 0);
+      const salida = items.filter((it) => it.tipo === 'Gasto').reduce((a, it) => a + it.monto, 0);
+      return `<h3>Colecta: ${esc(c.motivo)}</h3><p>${c.meta ? 'Meta: ' + money(c.meta) + ' · ' : ''}Saldo anterior: ${money(prev)} · Recaudado en el periodo: ${money(entrada)} · Gastos: ${money(salida)} · Saldo al cierre: ${money(prev + entrada - salida)}</p>
+        <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Persona / concepto del gasto</th><th class="num">Monto</th></tr></thead><tbody>
+        ${items.map((it) => `<tr><td>${esc(fechaLabel(it.fecha))}</td><td>${it.tipo}</td><td>${esc(it.concepto)}</td><td class="num ${it.cls}">${money(it.monto)}</td></tr>`).join('')}
+        </tbody></table>`;
+    }).join('') || '<p>Sin movimientos de Séptimas extras en el periodo.</p>'}
+    `;
 }
 
-function conceptosExtrasHtml(items) {
-  return items.length ? `<div class="gastos-desglose">${items.map((it) => `<div class="g-line"><span>${esc(it.concepto)}</span><b>${money(it.monto)}</b></div>`).join('')}</div>` : '<span class="muted">—</span>';
+function colectaActual() { return STATE.colectasExtras.find((c) => c.id === COLECTA_ID); }
+
+function kpiExtra(label, value, cls = '') {
+  return `<div class="kpi"><div class="label">${label}</div><div class="value ${cls}">${value}</div></div>`;
 }
 
 function viewExtras(root) {
-  const records = STATE.septimasExtras;
-  const filtered = records.filter((r) => pasaFiltro(r.fecha, EXTRA_YEAR, EXTRA_MONTH));
-  root.appendChild(elFromHtml(`<div class="kpis">
-    <div class="kpi accent"><div class="label">Saldo de Séptimas extras</div><div class="value">${money(STATE.resumen.totalSeptimasExtras)}</div><div class="sub">Fondo independiente · saldo de todo el historial</div></div>
-    <div class="kpi"><div class="label">Ingresos del periodo seleccionado</div><div class="value pos">${money(filtered.reduce((a, r) => a + r.ingresos, 0))}</div></div>
-    <div class="kpi"><div class="label">Egresos del periodo seleccionado</div><div class="value neg">${money(filtered.reduce((a, r) => a + r.egresos, 0))}</div></div></div>`));
-  root.appendChild(elFromHtml(yearMonthFilterHtml('extra', aniosDe(records.map((r) => r.fecha)), EXTRA_YEAR, EXTRA_MONTH)));
-  root.appendChild(elFromHtml(`<div class="card"><div class="card-head"><h2>Séptimas extras ${filtroSufijo(EXTRA_YEAR, EXTRA_MONTH)}</h2></div><div class="card-body">
-    ${filtered.length ? `<table class="tbl"><thead><tr><th>Fecha</th><th>Motivo</th><th>Ingresos · Entrada</th><th>Egresos · Salida</th><th class="num">Saldo del fondo</th><th></th></tr></thead><tbody>
-    ${filtered.slice().reverse().map((r) => `<tr>
-      <td><span class="lbl">Fecha</span>${esc(fechaLabel(r.fecha))}</td>
-      <td class="cell-wide"><span class="lbl">Motivo</span>${esc(r.motivo)}</td>
-      <td class="cell-wide"><span class="lbl">Ingresos · Entrada</span>${conceptosExtrasHtml(r.ingresosItems)}<b class="pos">${money(r.ingresos)}</b></td>
-      <td class="cell-wide"><span class="lbl">Egresos · Salida</span>${conceptosExtrasHtml(r.gastosItems)}<b class="neg">${money(r.egresos)}</b></td>
-      <td class="num"><span class="lbl">Saldo del fondo</span>${money(r.saldo)}</td>
-      <td class="cell-actions"><div class="row-actions"><button class="icon-btn" title="Editar registro" data-edit-extra="${r.id}">✏️</button><button class="icon-btn" title="Eliminar registro" data-del-extra="${r.id}">🗑️</button></div></td>
-    </tr>`).join('')}</tbody></table>` : '<div class="empty">Sin registros de Séptimas extras para este periodo.</div>'}
-    </div></div>`));
+  const c = colectaActual();
+  if (c) return viewColecta(root, c);
+  root.appendChild(elFromHtml(`<div class="kpis">${kpiExtra('Saldo de Séptimas extras', money(STATE.resumen.totalSeptimasExtras))}
+    ${kpiExtra('Colectas abiertas', STATE.colectasExtras.filter((c) => c.estado === 'abierta').length)}</div>`));
+  root.appendChild(elFromHtml('<p class="muted">Crea una colecta por motivo, por ejemplo “Cafetera”, y registra cada aportación con nombre, fecha y monto.</p>'));
+  if (!STATE.colectasExtras.length) {
+    root.appendChild(elFromHtml('<div class="card"><div class="empty">Aún no hay colectas. Usa “Nueva colecta” para comenzar.</div></div>'));
+    return;
+  }
+  for (const c of [...STATE.colectasExtras].reverse()) {
+    const card = elFromHtml(`<div class="card"><div class="card-head"><h2>${esc(c.motivo)}</h2><span class="muted">${c.estado === 'abierta' ? 'Abierta' : 'Cerrada'}</span></div>
+      <div class="card-body"><div class="kpis">
+        ${kpiExtra('Recaudado', money(c.recaudado), 'pos')}${kpiExtra('Gastos', money(c.gastado), 'neg')}${kpiExtra('Disponible', money(c.saldo))}
+      </div>${c.meta ? `<p>Meta: <b>${money(c.meta)}</b> · Falta reunir: <b>${money(c.faltante)}</b></p><progress style="width:100%" max="${c.meta}" value="${Math.min(c.recaudado, c.meta)}" aria-label="Avance de la colecta"></progress>` : '<p class="muted">Sin meta definida</p>'}
+      <div class="row-actions" style="opacity:1;display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+        <button class="btn primary" data-open-colecta="${c.id}">Ver aportaciones</button>
+        ${c.estado === 'abierta' ? `<button class="btn" data-add-aporte="${c.id}">+ Agregar aportación</button>` : ''}
+      </div></div></div>`);
+    root.appendChild(card);
+  }
+}
+
+function viewColecta(root, c) {
+  const bar = document.createElement('div');
+  bar.className = 'filterbar';
+  bar.appendChild(btn('← Todas las colectas', '', () => { COLECTA_ID = null; render(); }));
+  bar.appendChild(btn('Editar colecta', '', () => openColectaModal(c)));
+  bar.appendChild(btn(c.estado === 'abierta' ? 'Cerrar colecta' : 'Reabrir colecta', '', async () => {
+    try { STATE = await api('PUT', `/api/colectas/${c.id}`, { motivo: c.motivo, meta: c.meta, estado: c.estado === 'abierta' ? 'cerrada' : 'abierta' }); render(); } catch (e) { alert(e.message); }
+  }));
+  if (!c.movimientos.length) bar.appendChild(btn('Eliminar colecta vacía', '', async () => {
+    if (!confirm('¿Eliminar esta colecta vacía?')) return;
+    try { STATE = await api('DELETE', `/api/colectas/${c.id}`); COLECTA_ID = null; render(); } catch (e) { alert(e.message); }
+  }));
+  root.appendChild(bar);
+  root.appendChild(elFromHtml(`<div class="card"><div class="card-head"><h2>${esc(c.motivo)}</h2><span>${c.estado === 'abierta' ? 'Abierta' : 'Cerrada'}</span></div><div class="card-body"><div class="kpis">
+    ${kpiExtra('Meta', c.meta ? money(c.meta) : 'Sin meta')}${kpiExtra('Recaudado', money(c.recaudado), 'pos')}
+    ${kpiExtra('Faltante para la meta', c.meta ? money(c.faltante) : '—')}${kpiExtra('Gastos', money(c.gastado), 'neg')}${kpiExtra('Saldo disponible', money(c.saldo))}
+    </div></div></div>`));
+  root.appendChild(elFromHtml(yearMonthFilterHtml('extra', aniosDe(c.movimientos.map((m) => m.fecha)), EXTRA_YEAR, EXTRA_MONTH)));
+  const filtered = c.movimientos.filter((m) => pasaFiltro(m.fecha, EXTRA_YEAR, EXTRA_MONTH));
+  for (const tipo of ['aportacion', 'gasto']) {
+    const aportacion = tipo === 'aportacion';
+    const rows = filtered.filter((m) => m.tipo === tipo).slice().reverse();
+    const card = elFromHtml(`<div class="card"><div class="card-head"><h2>${aportacion ? 'Aportaciones' : 'Gastos de la colecta'} ${filtroSufijo(EXTRA_YEAR, EXTRA_MONTH)}</h2></div><div class="card-body">
+      ${rows.length ? `<table class="tbl"><thead><tr><th>Fecha</th><th>${aportacion ? 'Persona que aporta' : 'Concepto del gasto'}</th><th class="num">Monto</th><th></th></tr></thead><tbody>
+      ${rows.map((m) => `<tr><td><span class="lbl">Fecha</span>${esc(fechaLabel(m.fecha))}</td><td class="cell-wide"><span class="lbl">${aportacion ? 'Persona' : 'Concepto'}</span>${esc(aportacion ? m.persona : m.concepto)}</td>
+        <td class="num ${aportacion ? 'pos' : 'neg'}"><span class="lbl">Monto</span>${money(m.monto)}</td><td class="cell-actions"><div class="row-actions">
+        <button class="icon-btn" title="Editar registro" data-edit-aporte="${m.id}" data-colecta="${c.id}">✏️</button>
+        <button class="icon-btn" title="Eliminar registro" data-del-aporte="${m.id}" data-colecta="${c.id}">🗑️</button></div></td></tr>`).join('')}</tbody></table>
+        <p>Total del periodo: <b>${money(rows.reduce((a, m) => a + m.monto, 0))}</b></p>` : '<p class="empty">Sin registros en este periodo.</p>'}</div></div>`);
+    if (c.estado === 'abierta') $('.card-head', card).appendChild(btn(aportacion ? '+ Agregar aportación' : '+ Registrar gasto', aportacion ? 'primary' : '', () => openAporteModal(c, tipo)));
+    root.appendChild(card);
+  }
   $('#extra-year').onchange = (e) => { EXTRA_YEAR = e.target.value; render(); };
   $('#extra-month').onchange = (e) => { EXTRA_MONTH = e.target.value; render(); };
 }
 
-function extraConceptRow(it = {}) {
-  return `<div class="gasto-row"><input class="extra-concepto" aria-label="Concepto" placeholder="Concepto" value="${esc(it.concepto || '')}">
-    <input class="extra-monto" aria-label="Monto" type="number" min="0.01" step="0.01" placeholder="0.00" value="${esc(it.monto ?? '')}">
-    <button class="icon-btn extra-del" type="button" title="Quitar concepto">🗑️</button></div>`;
+function openColectaModal(c) {
+  const fields = field('Motivo de la colecta', 'motivo', 'text', c?.motivo || '', 'required placeholder="Ej. Cafetera"') +
+    field('Meta a reunir (opcional)', 'meta', 'number', c?.meta || '', 'min="0" step="0.01" placeholder="0.00"');
+  openModal(c ? 'Editar colecta' : 'Nueva colecta de Séptima extra', fields, async (data) => {
+    const next = await api(c ? 'PUT' : 'POST', '/api/colectas' + (c ? `/${c.id}` : ''), { ...data, estado: c?.estado || 'abierta' });
+    COLECTA_ID = c?.id || next.colectasExtras.at(-1).id;
+    EXTRA_YEAR = EXTRA_MONTH = 'all';
+    return next;
+  });
 }
 
-function openExtraModal(record) {
-  const section = (name, title, items) => `<div class="field extra-section" data-kind="${name}"><span>${title}</span>
-    <div class="extra-list">${(items?.length ? items : [{}]).map(extraConceptRow).join('')}</div>
-    <button type="button" class="btn ghost extra-add">+ Agregar concepto de ${name === 'ingresosItems' ? 'ingreso' : 'gasto'}</button>
-    <div class="extra-total muted" aria-live="polite"></div></div>`;
-  const fields = field('Fecha', 'fecha', 'date', record?.fecha || todayLocal(), 'required') +
-    field('Motivo', 'motivo', 'text', record?.motivo || '', 'required placeholder="Ej. Cooperación especial"') +
-    section('ingresosItems', 'Ingresos · Entrada (concepto y monto)', record?.ingresosItems) +
-    section('gastosItems', 'Egresos · Salida (concepto y monto)', record?.gastosItems);
-  openModal(record ? 'Editar Séptimas extras' : 'Nuevo registro de Séptimas extras', fields, (data, form) => {
-    const payload = { fecha: data.fecha, motivo: data.motivo };
-    $$('.extra-section', form).forEach((section) => {
-      payload[section.dataset.kind] = $$('.gasto-row', section).map((row) => ({ concepto: $('.extra-concepto', row).value.trim(), monto: $('.extra-monto', row).value }))
-        .filter((it) => it.concepto || it.monto !== '');
-    });
-    return api(record ? 'PUT' : 'POST', '/api/septimas-extras' + (record ? `/${record.id}` : ''), payload);
-  }, (form) => {
-    $$('.extra-section', form).forEach((section) => {
-      const list = $('.extra-list', section);
-      const recalc = () => { $('.extra-total', section).textContent = 'Total: ' + money($$('.extra-monto', section).reduce((a, input) => a + (Number(input.value) || 0), 0)); };
-      $('.extra-add', section).onclick = () => { list.insertAdjacentHTML('beforeend', extraConceptRow()); recalc(); };
-      section.oninput = recalc;
-      section.onclick = (e) => {
-        const button = e.target.closest('.extra-del');
-        if (button) { button.closest('.gasto-row').remove(); recalc(); }
-      };
-      recalc();
-    });
+function openAporteModal(c, tipo = 'aportacion', m) {
+  const aporte = tipo === 'aportacion';
+  const key = aporte ? 'persona' : 'concepto';
+  const fields = `<p>Colecta: <b>${esc(c.motivo)}</b></p>` +
+    field('Fecha', 'fecha', 'date', m?.fecha || todayLocal(), 'required') +
+    field(aporte ? 'Nombre de quien aporta' : 'Concepto del gasto', key, 'text', m?.[key] || '', 'required') +
+    field(aporte ? 'Monto aportado' : 'Monto del gasto', 'monto', 'number', m?.monto ?? '', 'required min="0.01" step="0.01" placeholder="0.00"');
+  openModal(m ? (aporte ? 'Editar aportación' : 'Editar gasto') : (aporte ? 'Agregar aportación' : 'Registrar gasto'), fields, async (data) => {
+    const next = await api(m ? 'PUT' : 'POST', `/api/colectas/${c.id}/movimientos` + (m ? `/${m.id}` : ''), { ...data, tipo });
+    COLECTA_ID = c.id;
+    EXTRA_YEAR = EXTRA_MONTH = 'all';
+    return next;
   });
 }
 
@@ -902,16 +940,22 @@ function openReservaModal(r) {
 // ---------------------------------------------------------------------------
 // Delegación de eventos
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-view],[data-pdf],[data-edit-mov],[data-del-mov],[data-edit-res],[data-del-res],[data-edit-extra],[data-del-extra]');
+  const t = e.target.closest('[data-view],[data-pdf],[data-edit-mov],[data-del-mov],[data-edit-res],[data-del-res],[data-open-colecta],[data-add-aporte],[data-edit-aporte],[data-del-aporte]');
   if (!t) return;
 
   if (t.dataset.view) return setView(t.dataset.view);
   if (t.dataset.pdf) { e.preventDefault(); return exportMonthlyPdf(t.dataset.pdf); }
 
   try {
-    if (t.dataset.editExtra) return openExtraModal(STATE.septimasExtras.find((x) => x.id == t.dataset.editExtra));
-    if (t.dataset.delExtra) {
-      if (confirm('¿Eliminar este registro de Séptimas extras?')) { STATE = await api('DELETE', `/api/septimas-extras/${t.dataset.delExtra}`); render(); }
+    if (t.dataset.openColecta) { COLECTA_ID = Number(t.dataset.openColecta); EXTRA_YEAR = EXTRA_MONTH = 'all'; render(); return; }
+    if (t.dataset.addAporte) return openAporteModal(STATE.colectasExtras.find((c) => c.id == t.dataset.addAporte));
+    if (t.dataset.editAporte) {
+      const c = STATE.colectasExtras.find((c) => c.id == t.dataset.colecta);
+      const m = c.movimientos.find((m) => m.id == t.dataset.editAporte);
+      return openAporteModal(c, m.tipo, m);
+    }
+    if (t.dataset.delAporte) {
+      if (confirm('¿Eliminar este registro de la colecta?')) { STATE = await api('DELETE', `/api/colectas/${t.dataset.colecta}/movimientos/${t.dataset.delAporte}`); render(); }
       return;
     }
     if (t.dataset.editMov) openMovModal(STATE.rows.find((x) => x.id == t.dataset.editMov));
