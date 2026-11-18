@@ -2,11 +2,11 @@
    Estrategia network-first: siempre intenta la red (datos/recursos frescos)
    y solo usa la caché como respaldo cuando no hay conexión. Así nunca quedan
    archivos viejos pegados. */
-const CACHE = 'billw-v12';
+const CACHE = 'billw-v13';
 const SHELL = [
   '/',
   '/styles.css?v=12',
-  '/app.js?v=12',
+  '/app.js?v=13',
   '/logo.webp',
   '/icon-192.png',
   '/icon-512.png',
@@ -44,3 +44,4 @@ self.addEventListener('fetch', (e) => {
       .catch(() => caches.match(req).then((r) => r || caches.match('/')))
   );
 });
+

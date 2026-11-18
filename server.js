@@ -139,6 +139,8 @@ function ensureDb() {
 // intactos: no se usan, pero se reescriben tal cual para no perder historial.
 function normalizeDb(db) {
   db.seq = db.seq || {};
+  db.septimasExtras = db.septimasExtras || [];
+  db.seq.extras = Math.max(Number(db.seq.extras) || 0, ...db.septimasExtras.map((r) => Number(r.id) || 0));
   return db;
 }
 
@@ -171,7 +173,7 @@ function makeBackup() {
   }
 }
 
-let DB = ensureDb();
+let DB = normalizeDb(ensureDb());
 function save() { writeDb(DB); }
 
 const num = (v) => {
@@ -252,6 +254,17 @@ function computeState() {
   const reservaEgresos = DB.reserva.reduce((a, r) => a + (gastosItemsTotal(r) || 0), 0);
   const totalReserva = DB.reserva.reduce((a, r) => a + num(r.monto), 0) - reservaEgresos;
 
+  let saldoExtras = 0;
+  const septimasExtras = [...DB.septimasExtras]
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id)
+    .map((r) => {
+      const ingresos = r.ingresosItems.reduce((a, it) => a + num(it.monto), 0);
+      const egresos = gastosItemsTotal(r) || 0;
+      const saldoAnterior = saldoExtras;
+      saldoExtras = Math.round((saldoExtras + ingresos - egresos) * 100) / 100;
+      return { ...r, ingresos, egresos, saldoAnterior, saldo: saldoExtras };
+    });
+
   return {
     saldoInicial: num(DB.saldoInicial),
     rows,
@@ -263,10 +276,12 @@ function computeState() {
       totalIngresos: num(DB.saldoInicial) + totalSeptimas,
       saldoActual,
       totalReserva,
+      totalSeptimasExtras: saldoExtras,
       numMovimientos: rows.length
     },
     meses,
-    reserva: DB.reserva
+    reserva: DB.reserva,
+    septimasExtras
   };
 }
 
@@ -363,6 +378,60 @@ app.delete('/api/reserva/:id', (req, res) => {
   res.json(computeState());
 });
 
+// --- Séptimas extras: fondo independiente, conceptos en centavos ---
+function parseExtras(body) {
+  const { fecha, motivo, ingresosItems, gastosItems } = body || {};
+  const date = new Date(`${fecha}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '') || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== fecha) {
+    throw new Error('La fecha es obligatoria y debe ser válida');
+  }
+  if (typeof motivo !== 'string' || !motivo.trim()) throw new Error('El motivo es obligatorio');
+  function items(value) {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error('Los conceptos deben ser una lista');
+    return value.map((it) => {
+      const concepto = String(it?.concepto || '').trim();
+      const monto = Number(it?.monto);
+      if (!concepto && (it?.monto === '' || monto === 0)) return null;
+      if (!concepto || !Number.isFinite(monto) || monto <= 0 || !Number.isSafeInteger(Math.round(monto * 100)) || Math.abs(monto * 100 - Math.round(monto * 100)) > 0.000001) {
+        throw new Error('Cada concepto requiere descripción y monto positivo con máximo dos decimales');
+      }
+      return { concepto, monto: Math.round(monto * 100) / 100 };
+    }).filter(Boolean);
+  }
+  const ingresos = items(ingresosItems);
+  const gastos = items(gastosItems);
+  if (!ingresos.length && !gastos.length) throw new Error('Agrega al menos un concepto de ingreso o egreso');
+  return { fecha, motivo: motivo.trim(), ingresosItems: ingresos, gastosItems: gastos };
+}
+
+app.post('/api/septimas-extras', (req, res) => {
+  let record;
+  try { record = parseExtras(req.body); } catch (err) { return res.status(400).json({ error: err.message }); }
+  DB.seq.extras += 1;
+  DB.septimasExtras.push({ id: DB.seq.extras, ...record });
+  save();
+  res.json(computeState());
+});
+
+app.put('/api/septimas-extras/:id', (req, res) => {
+  const record = DB.septimasExtras.find((r) => r.id === Number(req.params.id));
+  if (!record) return res.status(404).json({ error: 'No encontrado' });
+  let value;
+  try { value = parseExtras(req.body); } catch (err) { return res.status(400).json({ error: err.message }); }
+  Object.assign(record, value);
+  save();
+  res.json(computeState());
+});
+
+app.delete('/api/septimas-extras/:id', (req, res) => {
+  const index = DB.septimasExtras.findIndex((r) => r.id === Number(req.params.id));
+  if (index < 0) return res.status(404).json({ error: 'No encontrado' });
+  DB.septimasExtras.splice(index, 1);
+  save();
+  res.json(computeState());
+});
+
 // --- Configuración (saldo inicial) ---
 app.put('/api/config', (req, res) => {
   const { saldoInicial } = req.body || {};
@@ -390,3 +459,4 @@ app.listen(PORT, () => {
   console.log(`Datos en: ${DB_FILE}`);
   console.log(`Respaldos en: ${BACKUP_DIR} (conservando ${BACKUP_KEEP})`);
 });
+

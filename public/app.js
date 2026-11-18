@@ -4,6 +4,7 @@ let STATE = null;
 let VIEW = 'movimientos';
 let MOV_YEAR = 'all', MOV_MONTH = 'all'; // filtros de la vista Movimientos
 let MES_YEAR = 'all', MES_MONTH = 'all'; // filtros de la vista Resúmenes por mes
+let EXTRA_YEAR = 'all', EXTRA_MONTH = 'all';
 
 const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -72,7 +73,8 @@ const TITLES = {
   general: 'Resumen anual',
   meses: 'Resúmenes por mes',
   movimientos: 'Movimientos',
-  reserva: 'Reserva'
+  reserva: 'Reserva',
+  extras: 'Séptimas extras'
 };
 
 function render() {
@@ -80,12 +82,14 @@ function render() {
   const r = STATE.resumen;
   $('#ss-saldo').textContent = money(r.saldoActual);
   $('#ss-reserva').textContent = money(r.totalReserva);
+  $('#ss-extras').textContent = money(r.totalSeptimasExtras);
   $('#view-title').textContent = TITLES[VIEW];
 
   const actions = $('#topbar-actions');
   actions.innerHTML = '';
   if (VIEW === 'movimientos') actions.appendChild(btn('+ Nuevo movimiento', 'primary', () => openMovModal()));
   if (VIEW === 'reserva') actions.appendChild(btn('+ Nuevo registro', 'primary', () => openReservaModal()));
+  if (VIEW === 'extras') actions.appendChild(btn('+ Nuevo registro', 'primary', () => openExtraModal()));
 
   const root = $('#view-root');
   root.innerHTML = '';
@@ -93,7 +97,8 @@ function render() {
     general: viewGeneral,
     meses: viewMeses,
     movimientos: viewMovimientos,
-    reserva: viewReserva
+    reserva: viewReserva,
+    extras: viewExtras
   })[VIEW](root);
 }
 
@@ -113,6 +118,7 @@ function aniosDisponibles() {
   const set = new Set();
   STATE.rows.forEach((r) => { if (r.fecha) set.add(r.fecha.slice(0, 4)); });
   STATE.reserva.forEach((r) => { if (r.mes) set.add(r.mes.slice(0, 4)); });
+  STATE.septimasExtras.forEach((r) => set.add(r.fecha.slice(0, 4)));
   if (!set.size) set.add(String(new Date().getFullYear()));
   return [...set].sort();
 }
@@ -131,7 +137,7 @@ function viewGeneral(root) {
   // Fondos del año
   const totalReserva = STATE.reserva
     .filter((x) => (x.mes || '').startsWith(GEN_YEAR))
-    .reduce((a, x) => a + (Number(x.monto) || 0), 0);
+    .reduce((a, x) => a + (Number(x.monto) || 0) - egresosTotal(x), 0);
 
   // Selector de año
   const bar = document.createElement('div');
@@ -167,6 +173,14 @@ function viewGeneral(root) {
       <div class="sub">Fondo del saldo final mensual</div>
     </div>`;
   root.appendChild(kpis);
+
+  const extras = STATE.septimasExtras.filter((r) => r.fecha.startsWith(GEN_YEAR));
+  const extraIn = extras.reduce((a, r) => a + r.ingresos, 0);
+  const extraOut = extras.reduce((a, r) => a + r.egresos, 0);
+  const cierreExtras = STATE.septimasExtras.filter((r) => r.fecha.slice(0, 4) <= GEN_YEAR).at(-1)?.saldo || 0;
+  root.appendChild(elFromHtml(`<div class="card"><div class="card-head"><h2>Séptimas extras · ${esc(GEN_YEAR)}</h2></div><div class="card-body">
+    <p>Ingresos: <b class="pos">${money(extraIn)}</b> · Egresos: <b class="neg">${money(extraOut)}</b> · Saldo del fondo al cierre: <b>${money(cierreExtras)}</b></p>
+    <p class="muted">Fondo independiente del saldo general y de la reserva.</p></div></div>`));
 
   // Gráfico mensual del año
   root.appendChild(monthlyBars(STATE.meses.filter((m) => (m.mes || '').startsWith(GEN_YEAR))));
@@ -240,8 +254,7 @@ function pasaFiltro(ymd, year, month) {
 // ---------------------------------------------------------------------------
 // Vista: Resúmenes por mes
 function viewMeses(root) {
-  const meses = STATE.meses;
-  if (!meses.length) { root.innerHTML = '<div class="card"><div class="empty">Aún no hay movimientos.</div></div>'; return; }
+  const meses = mesesConExtras();
 
   const years = aniosDe(meses.map((m) => m.mes));
   if (MES_YEAR !== 'all' && !years.includes(MES_YEAR)) MES_YEAR = 'all';
@@ -276,7 +289,7 @@ function viewMeses(root) {
         <thead><tr>
           <th>Mes</th><th class="num">Movs.</th>
           <th class="num">Ingresos</th><th class="num">Gastos</th>
-          <th class="num">Saldo fin de mes</th><th></th>
+          <th class="num">Saldo fin de mes</th><th class="num">Ingresos extras</th><th class="num">Egresos extras</th><th class="num">Saldo extras</th><th></th>
         </tr></thead>
         <tbody>
           ${filtered.map((m) => `<tr>
@@ -285,6 +298,9 @@ function viewMeses(root) {
             <td class="num pos"><span class="lbl">Ingresos</span>${money(m.ingresos)}</td>
             <td class="num neg"><span class="lbl">Gastos</span>${money(m.gastos)}</td>
             <td class="num"><span class="lbl">Saldo fin de mes</span><b>${money(m.saldoFinalMes)}</b></td>
+            <td class="num pos"><span class="lbl">Ingresos extras</span>${money(m.extrasIngresos)}</td>
+            <td class="num neg"><span class="lbl">Egresos extras</span>${money(m.extrasEgresos)}</td>
+            <td class="num"><span class="lbl">Saldo extras</span>${money(m.extrasSaldo)}</td>
             <td class="cell-actions"><button class="btn" data-pdf="${m.mes}">📄 PDF</button></td>
           </tr>`).join('')}
         </tbody>
@@ -395,7 +411,7 @@ function exportDateRangePdf(desde, hasta) {
   }
 
   const rows = STATE.rows.filter((r) => r.fecha >= desde && r.fecha <= hasta);
-  if (!rows.length) {
+  if (!rows.length && !STATE.septimasExtras.some((r) => r.fecha >= desde && r.fecha <= hasta)) {
     alert('No hay movimientos registrados en el rango seleccionado.');
     return;
   }
@@ -403,8 +419,8 @@ function exportDateRangePdf(desde, hasta) {
   const ingresos = rows.reduce((a, r) => a + r.septima, 0);
   const gastos = rows.reduce((a, r) => a + r.gastos, 0);
   const ingresosRows = rows.filter((r) => r.septima > 0);
-  const saldoInicial = rows[0].saldoAnterior;
-  const saldoFinal = rows[rows.length - 1].total;
+  const saldoInicial = rows.length ? rows[0].saldoAnterior : saldoGeneralAntes(desde);
+  const saldoFinal = rows.length ? rows[rows.length - 1].total : saldoInicial;
   const hoy = fechaLabel(todayLocal());
   const periodo = `${fechaLabel(desde)} al ${fechaLabel(hasta)}`;
   // La reserva se registra por mes, no por día. Para conservarla en el corte
@@ -464,6 +480,7 @@ function exportDateRangePdf(desde, hasta) {
       <tr><td>Promedio de ingreso por sesión</td><td class="num pos">${money(ingresosRows.length ? ingresos / ingresosRows.length : 0)}</td></tr><tr class="total-row"><td>Total ingresos</td><td class="num pos">${money(ingresos)}</td></tr></tbody></table>
     <h2>Desglose de gastos del periodo</h2><table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th></tr></thead><tbody>${desgloseGastos}<tr class="total-row"><td colspan="2">Total gastos</td><td class="num neg">${money(gastos)}</td></tr></tbody></table>
     ${seccionNotas}
+    ${reporteExtrasHtml(desde, hasta)}
     <h2>Reserva</h2><table class="resumen"><tbody><tr><td>Saldo anterior a ${esc(mesLabel(mesDesde))}</td><td class="num">${money(reservaAnterior)}</td></tr>
       <tr><td>Reserva aportada en los meses del periodo</td><td class="num pos">${money(reservaAportada)}</td></tr>${reservaEgresos ? `<tr><td>Egresos de reserva en los meses del periodo</td><td class="num neg">${money(reservaEgresos)}</td></tr>` : ''}
       <tr class="total-row"><td>Reserva acumulada</td><td class="num">${money(reservaTotal)}</td></tr></tbody></table>
@@ -480,7 +497,7 @@ function exportDateRangePdf(desde, hasta) {
 }
 
 function exportMonthlyPdf(mes) {
-  const m = STATE.meses.find((x) => x.mes === mes);
+  const m = mesesConExtras().find((x) => x.mes === mes);
   if (!m) return;
   const rows = STATE.rows.filter((r) => r.mes === mes);
   const ingresosRows = rows.filter((r) => r.septima > 0);
@@ -602,6 +619,7 @@ function exportMonthlyPdf(mes) {
 
     ${seccionNotas}
 
+    ${reporteExtrasHtml(mes + '-01', mes + '-31')}
     <h2>Reserva</h2>
     <table class="resumen"><tbody>
       <tr><td>Saldo anterior (meses anteriores)</td><td class="num">${money(reservaAnterior)}</td></tr>
@@ -637,6 +655,114 @@ function exportMonthlyPdf(mes) {
 
 // ---------------------------------------------------------------------------
 // Modales
+function saldoGeneralAntes(fecha) {
+  return STATE.rows.filter((r) => r.fecha < fecha).at(-1)?.total ?? STATE.saldoInicial;
+}
+
+function mesesConExtras() {
+  const map = new Map(STATE.meses.map((m) => [m.mes, { ...m }]));
+  for (const r of STATE.septimasExtras) {
+    const mes = r.fecha.slice(0, 7);
+    if (!map.has(mes)) {
+      const saldo = saldoGeneralAntes(mes + '-01');
+      map.set(mes, { mes, movimientos: 0, ingresos: 0, gastos: 0, saldoInicialMes: saldo, saldoFinalMes: saldo });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.mes.localeCompare(b.mes)).map((m) => {
+    const records = STATE.septimasExtras.filter((r) => r.fecha.startsWith(m.mes));
+    return { ...m,
+      extrasIngresos: records.reduce((a, r) => a + r.ingresos, 0),
+      extrasEgresos: records.reduce((a, r) => a + r.egresos, 0),
+      extrasSaldo: STATE.septimasExtras.filter((r) => r.fecha.slice(0, 7) <= m.mes).at(-1)?.saldo || 0
+    };
+  });
+}
+
+function reporteExtrasHtml(desde, hasta) {
+  const records = STATE.septimasExtras.filter((r) => r.fecha >= desde && r.fecha <= hasta);
+  const anterior = STATE.septimasExtras.filter((r) => r.fecha < desde).at(-1)?.saldo || 0;
+  const ingresos = records.reduce((a, r) => a + r.ingresos, 0);
+  const egresos = records.reduce((a, r) => a + r.egresos, 0);
+  const lines = records.flatMap((r) => [
+    ...r.ingresosItems.map((it) => ({ ...it, fecha: r.fecha, motivo: r.motivo, tipo: 'Entrada', cls: 'pos' })),
+    ...r.gastosItems.map((it) => ({ ...it, fecha: r.fecha, motivo: r.motivo, tipo: 'Salida', cls: 'neg' }))
+  ]);
+  return `<h2>Séptimas extras · Fondo independiente</h2>
+    <table class="resumen"><tbody>
+      <tr><td>Saldo anterior del fondo</td><td class="num">${money(anterior)}</td></tr>
+      <tr><td>Ingresos del periodo</td><td class="num pos">${money(ingresos)}</td></tr>
+      <tr><td>Egresos del periodo</td><td class="num neg">${money(egresos)}</td></tr>
+      <tr class="total-row"><td>Saldo final de Séptimas extras</td><td class="num">${money(anterior + ingresos - egresos)}</td></tr>
+    </tbody></table>
+    <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Motivo</th><th>Concepto</th><th class="num">Monto</th></tr></thead><tbody>
+      ${lines.length ? lines.map((it) => `<tr><td>${esc(fechaLabel(it.fecha))}</td><td>${it.tipo}</td><td>${esc(it.motivo)}</td><td>${esc(it.concepto)}</td><td class="num ${it.cls}">${money(it.monto)}</td></tr>`).join('') : '<tr><td colspan="5">Sin movimientos de Séptimas extras en el periodo.</td></tr>'}
+    </tbody></table>`;
+}
+
+function conceptosExtrasHtml(items) {
+  return items.length ? `<div class="gastos-desglose">${items.map((it) => `<div class="g-line"><span>${esc(it.concepto)}</span><b>${money(it.monto)}</b></div>`).join('')}</div>` : '<span class="muted">—</span>';
+}
+
+function viewExtras(root) {
+  const records = STATE.septimasExtras;
+  const filtered = records.filter((r) => pasaFiltro(r.fecha, EXTRA_YEAR, EXTRA_MONTH));
+  root.appendChild(elFromHtml(`<div class="kpis">
+    <div class="kpi accent"><div class="label">Saldo de Séptimas extras</div><div class="value">${money(STATE.resumen.totalSeptimasExtras)}</div><div class="sub">Fondo independiente · saldo de todo el historial</div></div>
+    <div class="kpi"><div class="label">Ingresos del periodo seleccionado</div><div class="value pos">${money(filtered.reduce((a, r) => a + r.ingresos, 0))}</div></div>
+    <div class="kpi"><div class="label">Egresos del periodo seleccionado</div><div class="value neg">${money(filtered.reduce((a, r) => a + r.egresos, 0))}</div></div></div>`));
+  root.appendChild(elFromHtml(yearMonthFilterHtml('extra', aniosDe(records.map((r) => r.fecha)), EXTRA_YEAR, EXTRA_MONTH)));
+  root.appendChild(elFromHtml(`<div class="card"><div class="card-head"><h2>Séptimas extras ${filtroSufijo(EXTRA_YEAR, EXTRA_MONTH)}</h2></div><div class="card-body">
+    ${filtered.length ? `<table class="tbl"><thead><tr><th>Fecha</th><th>Motivo</th><th>Ingresos · Entrada</th><th>Egresos · Salida</th><th class="num">Saldo del fondo</th><th></th></tr></thead><tbody>
+    ${filtered.slice().reverse().map((r) => `<tr>
+      <td><span class="lbl">Fecha</span>${esc(fechaLabel(r.fecha))}</td>
+      <td class="cell-wide"><span class="lbl">Motivo</span>${esc(r.motivo)}</td>
+      <td class="cell-wide"><span class="lbl">Ingresos · Entrada</span>${conceptosExtrasHtml(r.ingresosItems)}<b class="pos">${money(r.ingresos)}</b></td>
+      <td class="cell-wide"><span class="lbl">Egresos · Salida</span>${conceptosExtrasHtml(r.gastosItems)}<b class="neg">${money(r.egresos)}</b></td>
+      <td class="num"><span class="lbl">Saldo del fondo</span>${money(r.saldo)}</td>
+      <td class="cell-actions"><div class="row-actions"><button class="icon-btn" title="Editar registro" data-edit-extra="${r.id}">✏️</button><button class="icon-btn" title="Eliminar registro" data-del-extra="${r.id}">🗑️</button></div></td>
+    </tr>`).join('')}</tbody></table>` : '<div class="empty">Sin registros de Séptimas extras para este periodo.</div>'}
+    </div></div>`));
+  $('#extra-year').onchange = (e) => { EXTRA_YEAR = e.target.value; render(); };
+  $('#extra-month').onchange = (e) => { EXTRA_MONTH = e.target.value; render(); };
+}
+
+function extraConceptRow(it = {}) {
+  return `<div class="gasto-row"><input class="extra-concepto" aria-label="Concepto" placeholder="Concepto" value="${esc(it.concepto || '')}">
+    <input class="extra-monto" aria-label="Monto" type="number" min="0.01" step="0.01" placeholder="0.00" value="${esc(it.monto ?? '')}">
+    <button class="icon-btn extra-del" type="button" title="Quitar concepto">🗑️</button></div>`;
+}
+
+function openExtraModal(record) {
+  const section = (name, title, items) => `<div class="field extra-section" data-kind="${name}"><span>${title}</span>
+    <div class="extra-list">${(items?.length ? items : [{}]).map(extraConceptRow).join('')}</div>
+    <button type="button" class="btn ghost extra-add">+ Agregar concepto de ${name === 'ingresosItems' ? 'ingreso' : 'gasto'}</button>
+    <div class="extra-total muted" aria-live="polite"></div></div>`;
+  const fields = field('Fecha', 'fecha', 'date', record?.fecha || todayLocal(), 'required') +
+    field('Motivo', 'motivo', 'text', record?.motivo || '', 'required placeholder="Ej. Cooperación especial"') +
+    section('ingresosItems', 'Ingresos · Entrada (concepto y monto)', record?.ingresosItems) +
+    section('gastosItems', 'Egresos · Salida (concepto y monto)', record?.gastosItems);
+  openModal(record ? 'Editar Séptimas extras' : 'Nuevo registro de Séptimas extras', fields, (data, form) => {
+    const payload = { fecha: data.fecha, motivo: data.motivo };
+    $$('.extra-section', form).forEach((section) => {
+      payload[section.dataset.kind] = $$('.gasto-row', section).map((row) => ({ concepto: $('.extra-concepto', row).value.trim(), monto: $('.extra-monto', row).value }))
+        .filter((it) => it.concepto || it.monto !== '');
+    });
+    return api(record ? 'PUT' : 'POST', '/api/septimas-extras' + (record ? `/${record.id}` : ''), payload);
+  }, (form) => {
+    $$('.extra-section', form).forEach((section) => {
+      const list = $('.extra-list', section);
+      const recalc = () => { $('.extra-total', section).textContent = 'Total: ' + money($$('.extra-monto', section).reduce((a, input) => a + (Number(input.value) || 0), 0)); };
+      $('.extra-add', section).onclick = () => { list.insertAdjacentHTML('beforeend', extraConceptRow()); recalc(); };
+      section.oninput = recalc;
+      section.onclick = (e) => {
+        const button = e.target.closest('.extra-del');
+        if (button) { button.closest('.gasto-row').remove(); recalc(); }
+      };
+      recalc();
+    });
+  });
+}
+
 function openModal(title, fieldsHtml, onSubmit, onReady) {
   $('#modal-title').textContent = title;
   $('#modal-form').innerHTML = fieldsHtml;
@@ -776,13 +902,18 @@ function openReservaModal(r) {
 // ---------------------------------------------------------------------------
 // Delegación de eventos
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-view],[data-pdf],[data-edit-mov],[data-del-mov],[data-edit-res],[data-del-res]');
+  const t = e.target.closest('[data-view],[data-pdf],[data-edit-mov],[data-del-mov],[data-edit-res],[data-del-res],[data-edit-extra],[data-del-extra]');
   if (!t) return;
 
   if (t.dataset.view) return setView(t.dataset.view);
   if (t.dataset.pdf) { e.preventDefault(); return exportMonthlyPdf(t.dataset.pdf); }
 
   try {
+    if (t.dataset.editExtra) return openExtraModal(STATE.septimasExtras.find((x) => x.id == t.dataset.editExtra));
+    if (t.dataset.delExtra) {
+      if (confirm('¿Eliminar este registro de Séptimas extras?')) { STATE = await api('DELETE', `/api/septimas-extras/${t.dataset.delExtra}`); render(); }
+      return;
+    }
     if (t.dataset.editMov) openMovModal(STATE.rows.find((x) => x.id == t.dataset.editMov));
     else if (t.dataset.delMov) { if (confirm('¿Eliminar este movimiento?')) { STATE = await api('DELETE', `/api/movimientos/${t.dataset.delMov}`); render(); } }
     else if (t.dataset.editRes) openReservaModal(STATE.reserva.find((x) => x.id == t.dataset.editRes));
@@ -812,3 +943,4 @@ if ('serviceWorker' in navigator) {
 }
 
 load();
+
