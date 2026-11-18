@@ -288,14 +288,14 @@ function viewMeses(root) {
     <div class="card-body">${filtered.length ? `
       <table class="tbl">
         <thead><tr>
-          <th>Mes</th><th class="num">Movs.</th>
+          <th>Mes</th><th class="num">Saldo inicial del mes</th>
           <th class="num">Ingresos</th><th class="num">Gastos</th>
           <th class="num">Saldo fin de mes</th><th class="num">Ingresos extras</th><th class="num">Egresos extras</th><th class="num">Saldo extras</th><th></th>
         </tr></thead>
         <tbody>
           ${filtered.map((m) => `<tr>
             <td><span class="lbl">Mes</span><b>${esc(mesLabel(m.mes))}</b></td>
-            <td class="num"><span class="lbl">Movs.</span>${m.movimientos}</td>
+            <td class="num"><span class="lbl">Saldo inicial del mes</span>${money(m.saldoInicialMes)}</td>
             <td class="num pos"><span class="lbl">Ingresos</span>${money(m.ingresos)}</td>
             <td class="num neg"><span class="lbl">Gastos</span>${money(m.gastos)}</td>
             <td class="num"><span class="lbl">Saldo fin de mes</span><b>${money(m.saldoFinalMes)}</b></td>
